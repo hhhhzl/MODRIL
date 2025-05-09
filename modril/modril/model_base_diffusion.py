@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-class MBD:
+class MBDScore:
     def __init__(
             self,
             env,
@@ -156,7 +156,10 @@ class MBD:
                 break
         return np.array(rews), states
 
-    def optimize(self, render=True):
+    def compute_reward(self, Ye, Ya):
+        pass
+
+    def run(self):
         """
         Run the full diffusion-based trajectory optimization.
         Args:
