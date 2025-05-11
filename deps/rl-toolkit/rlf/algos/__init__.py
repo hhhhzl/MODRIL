@@ -17,3 +17,7 @@ from rlf.algos.il.bco import BehavioralCloningFromObs
 from rlf.algos.il.bc_pretrain import BehavioralCloningPretrain
 from rlf.algos.nested_algo import NestedAlgo
 from rlf.algos.il.base_irl import BaseIRLAlgo
+from rlf.algos.il.dbc import DBC
+from rlf.algos.il.drail import DRAIL
+from rlf.algos.il.drail_un import DRAIL_UN
+from rlf.algos.il.sqil import SQIL
