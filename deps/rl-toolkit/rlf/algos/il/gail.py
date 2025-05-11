@@ -30,16 +30,16 @@ class GAIL(NestedAlgo):
     def __init__(self, agent_updater=PPO(), get_discrim=None):
         super().__init__([GailDiscrim(get_discrim), agent_updater], 1)
 
+
 class GailDiscrim(BaseIRLAlgo):
     def __init__(self, get_discrim=None):
         super().__init__()
         if get_discrim is None:
             get_discrim = self.get_default_discrim
         self.get_discrim = get_discrim
-        
+
         # For discriminator freeze step
         self.step = 0
-
 
     def get_default_discrim(self):
         """
@@ -102,7 +102,7 @@ class GailDiscrim(BaseIRLAlgo):
         return settings
 
     def mod_render_frames(self, frame, env_cur_obs, env_cur_action, env_cur_reward,
-            env_next_obs, **kwargs):
+                          env_next_obs, **kwargs):
         use_cur_obs = rutils.get_def_obs(env_cur_obs)
         use_cur_obs = torch.FloatTensor(use_cur_obs).unsqueeze(0).to(self.args.device)
 
@@ -115,7 +115,7 @@ class GailDiscrim(BaseIRLAlgo):
         frame = append_text_to_image(frame, [
             "Discrim: %.3f" % disc_val,
             "Reward: %.3f" % (env_cur_reward if env_cur_reward is not None else 0.0)
-            ])
+        ])
         return frame
 
     def _norm_expert_state(self, state, obsfilt):
@@ -139,10 +139,10 @@ class GailDiscrim(BaseIRLAlgo):
         expert_actions = expert_batch['actions'].to(self.args.device)
         expert_actions = self._adjust_action(expert_actions)
         expert_states = self._norm_expert_state(expert_batch['state'],
-                obsfilt)
+                                                obsfilt)
 
         agent_states = self._trans_agent_state(agent_batch['state'],
-                agent_batch['other_state'] if 'other_state' in agent_batch else None)
+                                               agent_batch['other_state'] if 'other_state' in agent_batch else None)
         agent_actions = agent_batch['action']
 
         agent_actions = rutils.get_ac_repr(
@@ -154,14 +154,14 @@ class GailDiscrim(BaseIRLAlgo):
         agent_d = self._compute_disc_val(agent_states, agent_actions)
 
         grad_pen = self.compute_pen(expert_states, expert_actions, agent_states,
-                agent_actions)
+                                    agent_actions)
 
         return expert_d, agent_d, grad_pen
 
     def compute_pen(self, expert_states, expert_actions, agent_states, agent_actions):
         grad_pen = self.args.disc_grad_pen * autils.wass_grad_pen(expert_states,
-                expert_actions, agent_states, agent_actions,
-                self.args.action_input, self._compute_disc_val)
+                                                                  expert_actions, agent_states, agent_actions,
+                                                                  self.args.action_input, self._compute_disc_val)
         return grad_pen
 
     def _compute_disc_val(self, state, action):
@@ -169,11 +169,11 @@ class GailDiscrim(BaseIRLAlgo):
 
     def _compute_expert_loss(self, expert_d, expert_batch):
         return F.binary_cross_entropy_with_logits(expert_d,
-                torch.ones(expert_d.shape).to(self.args.device))
+                                                  torch.ones(expert_d.shape).to(self.args.device))
 
     def _compute_agent_loss(self, agent_d, agent_batch):
         return F.binary_cross_entropy_with_logits(agent_d,
-                torch.zeros(agent_d.shape).to(self.args.device))
+                                                  torch.zeros(agent_d.shape).to(self.args.device))
 
     def plot_reward_map(self, i):
         x = torch.linspace(0, 10, 100)
@@ -181,7 +181,7 @@ class GailDiscrim(BaseIRLAlgo):
         X, Y = torch.meshgrid(x, y, indexing="ij")
         # print(X.shape)
         X = X.reshape(-1, 1).to(self.args.device)
-        Y = Y.reshape(-1,1).to(self.args.device)
+        Y = Y.reshape(-1, 1).to(self.args.device)
         # Z = torch.stack([X, Y], dim=2).view(-1, 2)
         with torch.no_grad():
             d_val = self._compute_disc_val(X, Y)
@@ -208,14 +208,14 @@ class GailDiscrim(BaseIRLAlgo):
         file_path = "./data/imgs/" + self.args.prefix + "_reward_map.png"
         plt.savefig(file_path)
         return file_path
-    
+
     def plot_disc_val_map(self, i):
         x = torch.linspace(0, 10, 100)
         y = torch.linspace(-2, 2, 100)
         X, Y = torch.meshgrid(x, y, indexing="ij")
         # print(X.shape)
         X = X.reshape(-1, 1).to(self.args.device)
-        Y = Y.reshape(-1,1).to(self.args.device)
+        Y = Y.reshape(-1, 1).to(self.args.device)
         # Z = torch.stack([X, Y], dim=2).view(-1, 2)
         with torch.no_grad():
             reward = self._compute_disc_val(X, Y).view(100, 100).cpu().numpy().T
@@ -244,7 +244,7 @@ class GailDiscrim(BaseIRLAlgo):
                     expert_batch, agent_batch)
                 n += 1
                 expert_d, agent_d, grad_pen = self._compute_discrim_loss(agent_batch, expert_batch,
-                        obsfilt)
+                                                                         obsfilt)
                 expert_loss = self._compute_expert_loss(expert_d, expert_batch)
                 agent_loss = self._compute_agent_loss(agent_d, agent_batch)
 
@@ -267,7 +267,7 @@ class GailDiscrim(BaseIRLAlgo):
 
         for k in log_vals:
             log_vals[k] /= n
-        if self.args.env_name[:4] == "Sine" and (self.step // (self.expert_train_loader.batch_size * n)) % 100 == 1 :
+        if self.args.env_name[:4] == "Sine" and (self.step // (self.expert_train_loader.batch_size * n)) % 100 == 1:
             # log_vals["_reward_map"] = self.plot_reward_map(self.step)
             log_vals["_disc_val_map"] = self.plot_disc_val_map(self.step)
 

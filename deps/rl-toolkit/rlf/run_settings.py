@@ -32,7 +32,6 @@ def init_seeds(args):
 
 try:
     from ray import tune
-
     MasterClass = tune.Trainable
 except:
 
@@ -201,7 +200,6 @@ class RunSettings(MasterClass):
 
         alg_env_settings = algo.get_env_settings(args)
         print("args.eval_only:", args.eval_only)
-        #import ipdb; ipdb.set_trace()
         # Setup environment
         _, envs = make_vec_envs(
             args.env_name,
