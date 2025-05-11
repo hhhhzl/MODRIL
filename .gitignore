@@ -6,7 +6,7 @@ __pycache__
 
 /data
 /expert_datasets
-/mdril/expert_datasets
+/modril/expert_datasets
 /wandb
 # Byte-compiled / optimized / DLL files
 __pycache__/

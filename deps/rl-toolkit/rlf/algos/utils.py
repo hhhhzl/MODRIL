@@ -11,9 +11,8 @@ import torch.nn.functional as F
 from torch import autograd
 
 
-
 def clip(
-    ac: torch.Tensor, lower_lim: torch.Tensor, upper_lim: torch.Tensor
+        ac: torch.Tensor, lower_lim: torch.Tensor, upper_lim: torch.Tensor
 ) -> torch.Tensor:
     """
     Per-dimension clip
@@ -25,10 +24,10 @@ def clip(
 
 
 def get_joint_limits(
-    limits_per_joint: List[Dict[str, float]],
-    lower_lim: float,
-    upper_lim: float,
-    device=None,
+        limits_per_joint: List[Dict[str, float]],
+        lower_lim: float,
+        upper_lim: float,
+        device=None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     inf_joints = torch.tensor(
         [joint["lower"] == 0.0 for joint in limits_per_joint[:7]],
@@ -52,7 +51,7 @@ def get_joint_limits(
 
 
 def wrap_joints(
-    js: torch.Tensor, lower_lim: float, upper_lim: float, wrap_mask
+        js: torch.Tensor, lower_lim: float, upper_lim: float, wrap_mask
 ) -> torch.Tensor:
     res = js.clone()
     lower = torch.tensor(lower_lim)
@@ -61,13 +60,13 @@ def wrap_joints(
     mask = (js > upper) | (js == lower)
     res *= ~mask
     res += mask * (
-        lower + torch.abs(js + upper) % (torch.abs(lower) + torch.abs(upper))
+            lower + torch.abs(js + upper) % (torch.abs(lower) + torch.abs(upper))
     )
 
     mask = (js < lower) | (js == upper)
     res *= ~mask
     res += mask * (
-        upper - torch.abs(js - lower) % (torch.abs(lower) + torch.abs(upper))
+            upper - torch.abs(js - lower) % (torch.abs(lower) + torch.abs(upper))
     )
 
     res = (lower * (res == upper)) + ((res != upper) * js)
@@ -142,7 +141,7 @@ def set_flat_params_to(params, flat_params):
     for param in params:
         flat_size = int(np.prod(list(param.size())))
         param.data.copy_(
-            flat_params[prev_ind : prev_ind + flat_size].view(param.size())
+            flat_params[prev_ind: prev_ind + flat_size].view(param.size())
         )
         prev_ind += flat_size
 
@@ -153,7 +152,7 @@ def get_flat_params_from(params):
 
 
 def wass_grad_pen(
-    expert_state, expert_action, policy_state, policy_action, use_actions, disc_fn
+        expert_state, expert_action, policy_state, policy_action, use_actions, disc_fn
 ):
     num_dims = len(expert_state.shape) - 1
     alpha = torch.rand(expert_state.size(0), 1)
@@ -169,7 +168,7 @@ def wass_grad_pen(
     if use_actions:
         alpha_action = alpha.expand_as(expert_action).to(expert_action.device)
         mixup_data_action = (
-            alpha_action * expert_action + (1 - alpha_action) * policy_action
+                alpha_action * expert_action + (1 - alpha_action) * policy_action
         )
         mixup_data_action.requires_grad = True
         inputs.append(mixup_data_action)
@@ -191,6 +190,7 @@ def wass_grad_pen(
     grad_pen = (grad.norm(2, dim=1) - 1).pow(2).mean()
     return grad_pen
 
+
 def wass_distance(p_dist, q_dist, eps=1e-8, n_iters=5):
     """
     Approximate the Wasserstein distance between two distributions using the Sinkhorn algorithm.
@@ -208,29 +208,29 @@ def wass_distance(p_dist, q_dist, eps=1e-8, n_iters=5):
     # Initializing the scaling factors for the two distributions
     u = torch.ones(n_points, device=p_dist.device) / n_points
     v = torch.ones(n_points, device=p_dist.device) / n_points
-    
+
     # Sinkhorn iterations
     for i in range(n_iters):
         v = q_dist / (torch.sum(p_dist * u, dim=1, keepdim=True) + eps)
         u = 1.0 / (torch.sum(p_dist * v, dim=1, keepdim=True) + eps)
-    
+
     # Compute the optimal transport matrix and the Wasserstein distance
     transport_matrix = u * (p_dist * v.t())
     wass_distance_val = torch.sum(transport_matrix * q_dist, dim=1, keepdim=True)
-    
+
     return wass_distance_val
 
 
 # def wass_distance(p_dist, q_dist, eps=1e-8, n_iters=5):
 #     """
 #     Approximate the Wasserstein distance between two distributions using the Sinkhorn algorithm.
-    
+
 #     Parameters:
 #         p_dist (torch.Tensor): The first distribution.
 #         q_dist (torch.Tensor): The second distribution.
 #         eps (float): A small positive value to stabilize the computation.
 #         n_iters (int): Number of iterations for Sinkhorn algorithm.
-    
+
 #     Returns:
 #         torch.Tensor: Approximated Wasserstein distance between p_dist and q_dist.
 #     """
@@ -238,14 +238,41 @@ def wass_distance(p_dist, q_dist, eps=1e-8, n_iters=5):
 #     # Initializing the scaling factors for the two distributions
 #     u = torch.ones(n_points, device=p_dist.device) / n_points
 #     v = torch.ones(n_points, device=p_dist.device) / n_points
-    
+
 #     # Sinkhorn iterations
 #     for i in range(n_iters):
 #         v = q_dist / (torch.sum(p_dist * u, dim=1, keepdim=True) + eps)
 #         u = 1.0 / (torch.sum(p_dist * v, dim=1, keepdim=True) + eps)
-    
+
 #     # Compute the optimal transport matrix and the Wasserstein distance
 #     transport_matrix = u * (p_dist * v.t())
 #     wass_distance_val = torch.sum(transport_matrix * q_dist)
 
 #     return wass_distance_val
+
+def get_concat_samples(policy_batch, expert_batch, args):
+    online_batch_state, online_batch_next_state, online_batch_action, online_batch_reward, online_batch_done = policy_batch
+
+    expert_batch_state, expert_batch_next_state, expert_batch_action, expert_batch_reward, expert_batch_done = expert_batch
+
+    if args.method.type == "sqil":
+        # convert policy reward to 0
+        online_batch_reward = torch.zeros_like(online_batch_reward)
+        # convert expert reward to 1
+        expert_batch_reward = torch.ones_like(expert_batch_reward)
+
+    batch_state = torch.cat([online_batch_state, expert_batch_state], dim=0)
+    batch_next_state = torch.cat(
+        [online_batch_next_state, expert_batch_next_state], dim=0)
+    batch_action = torch.cat([online_batch_action, expert_batch_action], dim=0)
+    batch_reward = torch.cat([online_batch_reward, expert_batch_reward], dim=0)
+    batch_done = torch.cat([online_batch_done, expert_batch_done], dim=0)
+    is_expert = torch.cat([torch.zeros_like(online_batch_reward, dtype=torch.bool),
+                           torch.ones_like(expert_batch_reward, dtype=torch.bool)], dim=0)
+
+    return batch_state, batch_next_state, batch_action, batch_reward, batch_done, is_expert
+
+
+def average_dicts(dict1, dict2):
+    return {key: 1 / 2 * (dict1.get(key, 0) + dict2.get(key, 0))
+            for key in set(dict1) | set(dict2)}

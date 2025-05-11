@@ -30,7 +30,8 @@ from rlf.algos import (
     DiffPolicy,
     BehavioralCloningFromObs,
     WAIL,
-    PWIL
+    PWIL,
+    IQLearn
 )
 # from goal_prox.method.discounted_pf import DiscountedProxIL
 # from goal_prox.method.goal_gail_discriminator import GoalGAIL
@@ -67,6 +68,7 @@ def get_setup_dict():
         "bc-deep": (BehavioralCloning(), get_deep_basic_policy),
         "sqil-deep": (SQIL(), get_deep_sac_policy),
         "sac": (SAC(), get_deep_sac_policy),
+        "iqlean": (IQLearn, get_deep_iqlearn_policy),
         # "uncert-gail": (UncertGAIL(), get_ppo_policy),
         # "dpf": (DiscountedProxIL(), get_ppo_policy),
         # "rpf": (RankedProxIL(), get_ppo_policy),
@@ -75,7 +77,7 @@ def get_setup_dict():
         "dbc": (DBC(), partial(get_basic_policy, is_stoch=False)),
         "drail-un": (DRAIL_UN(), get_ppo_policy),
         "drail": (DRAIL(), get_ppo_policy),
-        "modril": (MODRIL(), get_ppo_policy)
+        "modril": (MODRIL(), get_ppo_policy),
     }
 
 

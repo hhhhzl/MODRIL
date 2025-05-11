@@ -21,3 +21,4 @@ from rlf.algos.il.dbc import DBC
 from rlf.algos.il.drail import DRAIL
 from rlf.algos.il.drail_un import DRAIL_UN
 from rlf.algos.il.sqil import SQIL
+from rlf.algos.il.iq_learn import IQLearn
