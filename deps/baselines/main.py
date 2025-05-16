@@ -41,7 +41,7 @@ from rlf.algos import (
 
 from modril.utils.goal_traj_saver import GoalTrajSaver
 from modril.utils.trim_trans import trim_episodes_trans
-from modril.modril.get_policy import (
+from .get_policy import (
     get_ppo_policy,
     get_basic_policy,
     get_diffusion_policy,
@@ -50,14 +50,10 @@ from modril.modril.get_policy import (
     get_deep_iqlearn_policy,
     get_deep_basic_policy
 )
-from modril.modril.modril import MODRIL
 
 
 def get_setup_dict():
     return {
-        "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
-        "gail": (GAIL(), get_ppo_policy),
-        "wail": (WAIL(), get_ppo_policy),
         "pwil": (PWIL(), get_ppo_policy),
         "gaifo": (GAIFO(), get_ppo_policy),
         "ppo": (PPO(), get_ppo_policy),
@@ -68,16 +64,20 @@ def get_setup_dict():
         "bc-deep": (BehavioralCloning(), get_deep_basic_policy),
         "sqil-deep": (SQIL(), get_deep_sac_policy),
         "sac": (SAC(), get_deep_sac_policy),
-        "iqlean": (IQLearn, get_deep_iqlearn_policy),
         # "uncert-gail": (UncertGAIL(), get_ppo_policy),
         # "dpf": (DiscountedProxIL(), get_ppo_policy),
         # "rpf": (RankedProxIL(), get_ppo_policy),
         # "goal-gail": (GoalGAIL(), get_deep_ddpg_policy),
         # "gw-exp": (BaseAlgo(), lambda env_name, _: GridWorldExpert()),
+
+        # 跑通 => AntReach, FetchPush/FetchPick, HandRotate, Walker, Hopper, HalfCheetah
+        "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
+        "gail": (GAIL(), get_ppo_policy),
+        "wail": (WAIL(), get_ppo_policy),
+        "iqlean": (IQLearn, get_deep_iqlearn_policy),
         "dbc": (DBC(), partial(get_basic_policy, is_stoch=False)),
         "drail-un": (DRAIL_UN(), get_ppo_policy),
         "drail": (DRAIL(), get_ppo_policy),
-        "modril": (MODRIL(), get_ppo_policy),
     }
 
 
