@@ -1,5 +1,5 @@
 project: 'modril-project'
-program: modril/baselines/main.py
+program: modril/baseline/main.py
 method: grid
 name: Ant-drail-un-0.05
 command:
