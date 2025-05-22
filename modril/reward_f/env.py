@@ -27,7 +27,7 @@ class Environment:
         """
         self.x_raw = x_raw  # [0,10]
         self.x_norm = norm_state(x_raw)  # (−π,π)
-        self.data_raw = data_raw  # 同上
+        self.data_raw = data_raw  #
         self.tolerance = 1e-3
 
     def _raw_to_norm(self, x):
