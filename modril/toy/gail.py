@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from modril.reward_f.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
 import numpy as np
 
 
@@ -146,24 +146,39 @@ class GAIL_Flow:
             self.A = FFJORDDensity(dim).to(device)
             self.optA = torch.optim.Adam(self.A.parameters(), lr=lr)
         elif mode == "fm":
-            self.E = FlowMatching(dim).to(device)
-            self.A = FlowMatching(dim).to(device)
+            self.E = FlowMatching(state_dim, action_dim, device).to(device)
+            self.A = FlowMatching(state_dim, action_dim, device).to(device)
             self.optA = torch.optim.Adam(self.A.parameters(), lr=lr)
         else:
             raise ValueError(f"Invalid mode: {mode}")
         self.agent = agent
         self.device = device
 
-    def _update_agent_density(self, xs_A):
-        """update p_pi"""
-        loss = self.A.nll(xs_A) if self.mode=="ffjord" else self.A.fm_loss(xs_A)
-        self.optA.zero_grad(); loss.backward(); self.optA.step()
+    def _update_agent_density(self, s_A, a_A):
+        """
+        s_A: [B, state_dim]
+        a_A: [B, action_dim]
+        """
+        if self.mode == "ffjord":
+            xs_A = torch.cat([s_A, a_A], dim=1)    # [B, state_dim+action_dim]
+            loss = self.A.nll(xs_A)
+        else:
+            loss = self.A.c_fm_loss(s_A, a_A)
+
+        self.optA.zero_grad()
+        loss.backward()
+        self.optA.step()
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         # xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
+        s_A = torch.tensor(agent_s, dtype=torch.float32, device=self.device)
+        a_A = torch.tensor(agent_a, dtype=torch.float32, device=self.device)
         xs_A = torch.tensor(np.stack([agent_s,  agent_a], 1), dtype=torch.float32, device=self.device)
-
-        self._update_agent_density(xs_A.detach())
+        if s_A.dim() == 1:
+            s_A = s_A.unsqueeze(-1)
+        if a_A.dim() == 1:
+            a_A = a_A.unsqueeze(-1)
+        self._update_agent_density(s_A.detach(), a_A.detach())
 
         with torch.no_grad():
             logp_E = self.E.log_prob(xs_A).cpu().numpy()

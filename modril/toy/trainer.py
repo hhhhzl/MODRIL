@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 import datetime
-from modril.reward_f.env import Environment
-from modril.reward_f.utils import norm_state
-from modril.reward_f.policy import PPO
-from modril.reward_f.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
-from modril.reward_f.discriminators import FFJORDDensity, FlowMatching
+from modril.toy.env import Environment
+from modril.toy.utils import norm_state
+from modril.toy.policy import PPO
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
+from modril.toy.discriminators import FFJORDDensity, FlowMatching
 
 
 class Trainer:
@@ -18,7 +18,7 @@ class Trainer:
             method,
             lr_d=1e-3,
             hidden_dim=128,
-            n_episode=1000,
+            n_episode=10000,
             steps=100,
     ):
         self.action_list = None
@@ -56,8 +56,7 @@ class Trainer:
             self.trainer = GAIL_MI(self.agent, self.state_dim, self.action_dim, disc_lr=lr_d, device=self.device,
                                    mode=method)
         elif method == 'ffjord' or method == 'fm':
-            self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
-                                     lr=1e-3)
+            self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method, lr=1e-3)
 
     def init(
             self,
@@ -70,7 +69,7 @@ class Trainer:
             frequency = 0.1  # Frequency of the sine wave
             phase = 0.0  # Phase shift of the sine wave
             noise_std = 0.05  # Standard deviation of the Gaussian noise
-            scale = 4
+            scale = 2
             self.x = np.linspace(0, 10, num=1000)
             self.expert_a = amplitude * np.sin(scale * frequency * np.pi * self.x + phase) + np.random.normal(0, noise_std, size=len(self.x))
             self.expert_s = norm_state(self.x)
@@ -79,24 +78,45 @@ class Trainer:
             self.action_dim = 1
             self.env = Environment(data_raw, self.x)
 
-    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-5, clip_grad=0.1):
-        print("Pretrain Density_E ...")
+    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-5, clip_grad=1.0, log_interval=500):
+        """
+        method: "ffjord" or "fm"
+        """
+        if not torch.is_tensor(data):
+            data_t = torch.tensor(data, dtype=torch.float32, device=self.device)
+        else:
+            data_t = data.to(self.device).float()
+
         opt = torch.optim.Adam(estimator.parameters(), lr=lr)
-        with tqdm(total=steps, desc="Pretraining") as pbar:
-            for step in range(steps):
-                idx = np.random.choice(len(data), batch, False)
-                if method == "ffjord":
-                    loss = estimator.nll(data[idx])
-                elif method == "fm":
-                    loss = estimator.fm_loss(data[idx])
-                opt.zero_grad()
-                loss.backward()
-                if method == "fm":
-                    torch.nn.utils.clip_grad_norm_(estimator.parameters(), clip_grad)
-                opt.step()
-                if (step + 1) % 500 == 0:
-                    print(f"[Density_E pretrain] step {step+1:5d}  loss {loss.item():.4f}")
-                pbar.update(1)
+        estimator.train()
+
+        running_loss = 0.0
+        pbar = tqdm(total=steps, desc="Pretraining...", ncols=100)
+        for step in range(1, steps + 1):
+            idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
+            x0 = data_t[idx]
+            s = x0[:, :self.state_dim]
+            a = x0[:, self.state_dim:]
+
+            if method == "ffjord":
+                loss = estimator.nll(x0)
+            else:  # fm
+                loss = estimator.c_fm_loss(s, a, dequant_std=0.02)
+
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(estimator.parameters(), clip_grad)
+            opt.step()
+
+            running_loss += loss.item()
+            if step % log_interval == 0:
+                avg = running_loss / log_interval
+                running_loss = 0.0
+                pbar.set_postfix(avg_loss=f"{avg:.4f}")
+
+            pbar.update(1)
+
+        pbar.close()
 
         estimator.eval()
         for p in estimator.parameters():
@@ -111,7 +131,7 @@ class Trainer:
             xs_E_full = torch.tensor(np.stack([self.expert_s, self.expert_a], 1), dtype=torch.float32, device=self.device)
             density_E = self._pretrain_density(
                 self.method,
-                FFJORDDensity(self.state_dim + self.action_dim).to(self.device) if self.method == "ffjord" else FlowMatching(self.state_dim + self.action_dim).to(self.device),
+                FFJORDDensity(self.state_dim + self.action_dim).to(self.device) if self.method == "ffjord" else FlowMatching(self.state_dim, self.action_dim, self.device).to(self.device),
                 xs_E_full,
                 int(self.n_episode * self.steps / 1000) if self.method == "ffjord" else self.n_episode * self.steps
             )
@@ -149,7 +169,7 @@ class Trainer:
 if __name__ == "__main__":
     trainer = Trainer(
         function="sine",
-        method='nwj'
+        method='fm'
     )
     trainer.runner()
     trainer.plot()

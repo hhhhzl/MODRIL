@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
-from modril.reward_f.networks import EpsNet, TNet, ODEF, VNet
-from modril.reward_f.utils import timestep_embed
+from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
+from modril.toy.utils import timestep_embed
 import torch.nn.functional as F
 from torchdiffeq import odeint
+
 
 class Discriminator(nn.Module):
     def __init__(
@@ -166,6 +167,7 @@ class FFJORDDensity(nn.Module):
     """
     log p(x) = log p(z_T) − ∫_0^T Tr(∂f/∂z_t) dt
     """
+
     def __init__(self, dim, T=1.0, hidden=64):
         super().__init__()
         self.T = T
@@ -177,7 +179,7 @@ class FFJORDDensity(nn.Module):
     def _divergence_approx(self, y, f):
         """Tr(∂f/∂y) ≈ vᵀJᵀv,  v~Rademacher"""
         v = torch.randint_like(y, low=0, high=2).float() * 2 - 1  # ±1
-        (Jv,) = torch.autograd.grad(f, y, v, create_graph=True, retain_graph=True)
+        (Jv,) = torch.autograd.grad(f, y, v, create_graph=True)
         return (Jv * v).sum(1)
 
     def _odefunc(self, t, states):
@@ -187,22 +189,25 @@ class FFJORDDensity(nn.Module):
         div_f = self._divergence_approx(z, f).unsqueeze(1)
         return f, -div_f
 
-    # ---------- 正向推理 ----------
+    # ---------- Compute log probability ----------
     @torch.no_grad()
     def log_prob(self, x, atol=1e-5, rtol=1e-5):
         """
         get log prob
         """
-        z0 = x
-        logp0 = torch.zeros(x.size(0), 1, device=x.device)
-        t_span = torch.tensor([0., self.T], device=x.device)
-        zT, logpT = odeint(self._odefunc, (z0, logp0), t_span, atol=atol, rtol=rtol)
+        with torch.enable_grad():
+            z0 = x.requires_grad_(True)
+            # z0 = x.detach().requires_grad_(True)
+            logp0 = torch.zeros(x.size(0), 1, device=x.device)
+            t_span = torch.tensor([0., self.T], device=x.device)
+            zT, logpT = odeint(self._odefunc, (z0, logp0), t_span, atol=atol, rtol=rtol)
         zT, logpT = zT[-1], logpT[-1].squeeze(1)
-        return self.prior.log_prob(zT) + logpT         # (B,)
+        return self.prior.log_prob(zT) + logpT  # (B,)
 
-    # ---------- 训练用 NLL ----------
+    # ---------- Training loss (NLL) ----------
     def nll(self, x, atol=1e-5, rtol=1e-5):
-        z0 = x.detach().requires_grad_(True)
+        z0 = x.requires_grad_(True)
+        # z0 = x.detach().requires_grad_(True)
         logp0 = torch.zeros(x.size(0), 1, device=x.device)
         t_span = torch.tensor([0., self.T], device=x.device)
         zT, logpT = odeint(self._odefunc, (z0, logp0), t_span, atol=atol, rtol=rtol)
@@ -218,35 +223,77 @@ class FlowMatching(nn.Module):
     x_t = (1-t)·x + t·x̃  ，x̃~N(0,I)
     """
 
-    def __init__(self, dim):
+    def __init__(self, s_dim, a_dim, device, eps=1e-2):
         super().__init__()
-        self.vnet = VNet(dim)
-        self.dim = dim
-        self.prior = torch.distributions.MultivariateNormal(
-            torch.zeros(dim), torch.eye(dim)
-        )
+        self.s_dim, self.a_dim = s_dim, a_dim
+        # self.vnet = VNet(dim)
+        self.vnet = ConditionalVNet(s_dim, a_dim).to(device)
+        self.dim = self.s_dim + self.a_dim
+        # self.prior = torch.distributions.MultivariateNormal(
+        #     torch.zeros(dim), torch.eye(dim)
+        # )
+        self.prior = torch.distributions.Normal(0, 1)
+        self.eps = eps
 
     def _v_star(self, x_t, x0, t):
         return (x0 - self.prior.mean.to(x0)) / (1 - t)
 
     def fm_loss(self, x0):
         B = x0.size(0)
-        t = torch.rand(B, 1, device=x0.device)
+        t = torch.rand(B, 1, device=x0.device) * (1 - 2 * self.eps) + self.eps
         noise = self.prior.sample((B,)).to(x0)
         x_t = (1 - t) * x0 + t * noise
-        v_star = self._v_star(x_t, x0, t)
-        v_pred = self.vnet(x_t, t)
-        return F.mse_loss(v_pred, v_star)
+
+        v_star = self._v_star(x_t, x0, t)  # [B, D]
+        v_pred = self.vnet(x_t, t)  # [B, D]
+
+        weight = (1 - t).pow(2)  # [B,1]
+        mse_per_sample = F.mse_loss(v_pred, v_star, reduction='none').sum(dim=1, keepdim=True)  # [B,1]
+        loss = (weight * mse_per_sample).mean()
+        return loss
+
+    def c_fm_loss(self, s, a0, dequant_std=0.02):
+        """
+        """
+        B = s.size(0)
+        a0 = a0 + torch.randn_like(a0) * dequant_std
+        t = torch.rand(B, 1, device=a0.device) * (1 - 2 * self.eps) + self.eps
+
+        noise = self.prior.sample((B, self.a_dim)).to(a0)
+        a_t = (1 - t) * a0 + t * noise
+        v_star = (a0 - 0.) / (1 - t)  # prior.mean = 0
+
+        v_pred = self.vnet(a_t, s, t)
+        weight = (1 - t).pow(2)  # [B,1]
+        mse_i = ((v_pred - v_star) ** 2).sum(dim=1, keepdim=True)  # [B,1]
+        return (weight * mse_i).mean()
 
     # ------ estimate log-ratio via path integral ------
-    def log_prob(self, x, n_steps=64):
-        t_grid = torch.linspace(0, 1, n_steps + 1, device=x.device)
-        x_t = x
-        sum_trap = 0.
+    def log_prob(self, x, n_steps=16):
+        """
+        conditional log_prob
+        """
+        B = x.size(0)
+        s = x[:, :self.s_dim]  # [B, s_dim]
+        a = x[:, self.s_dim:]  # [B, a_dim]
+
+        t_grid = torch.linspace(0, 1, n_steps + 1, device=x.device)  # [n_steps+1]
+        a_t = a
+        sum_trap = torch.zeros(B, device=x.device)
         for i in range(n_steps):
-            t_mid = 0.5 * (t_grid[i] + t_grid[i + 1])
-            v = self.vnet(x_t, t_mid)
-            x_t = x_t + v * (1.0 / n_steps)
-            sum_trap += v.norm(dim=1) * (1.0 / n_steps)
-        # logp = log p_prior - ∫||v||dt
-        return self.prior.log_prob(x_t) - sum_trap
+            t_mid = 0.5 * (t_grid[i] + t_grid[i + 1])  # scalar
+            t_mid_batch = t_mid.expand(B, 1)  # [B,1]
+            v = self.vnet(a_t, s, t_mid_batch)  # [B, a_dim]
+
+            # step = Δt = 1 / n_steps
+            delta = 1.0 / n_steps
+
+            # Euler
+            a_t = a_t + v * delta  # [B, a_dim]
+            sum_trap += v.norm(dim=1) * delta  # [B]
+
+        logp_prior = self.prior.log_prob(a_t)  #
+        logp_prior = logp_prior.sum(dim=1)  # [B]
+
+        # 4) return log p = log p_prior - ∫||v||dt
+        return logp_prior - sum_trap  # [B]

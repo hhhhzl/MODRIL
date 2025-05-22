@@ -2,6 +2,27 @@ import torch
 import torch.nn as nn
 
 
+class ConditionalVNet(nn.Module):
+    """
+    vθ(x,t) —— time-conditioned vector field
+    for flow matching
+    """
+    def __init__(self, s_dim, a_dim, hidden=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(a_dim + s_dim + 1, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, a_dim)
+        )
+
+    def forward(self, a_t, s, t):
+        # a_t: [B,a_dim], s: [B,s_dim], t: [B,1]
+        x = torch.cat([a_t, s, t], dim=1)
+        return self.net(x)
+
+
 class VNet(nn.Module):
     """
     vθ(x,t) —— time-conditioned vector field
