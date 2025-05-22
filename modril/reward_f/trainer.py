@@ -70,12 +70,9 @@ class Trainer:
             frequency = 0.1  # Frequency of the sine wave
             phase = 0.0  # Phase shift of the sine wave
             noise_std = 0.05  # Standard deviation of the Gaussian noise
-            scale = 2
+            scale = 4
             self.x = np.linspace(0, 10, num=1000)
-            self.expert_a = amplitude * np.sin(scale * frequency * np.pi * self.x + phase) + np.random.normal(0,
-                                                                                                              noise_std,
-                                                                                                              size=len(
-                                                                                                                  self.x))
+            self.expert_a = amplitude * np.sin(scale * frequency * np.pi * self.x + phase) + np.random.normal(0, noise_std, size=len(self.x))
             self.expert_s = norm_state(self.x)
             data_raw = np.stack([self.x, self.expert_a], axis=1)
             self.state_dim = 1
@@ -151,8 +148,8 @@ class Trainer:
 
 if __name__ == "__main__":
     trainer = Trainer(
-        function='sine',
-        method="ffjord"
+        function="sine",
+        method='nwj'
     )
     trainer.runner()
     trainer.plot()
