@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def sine(x):
-    return (np.sin(2 * np.pi * 1 * x))
+    return np.sin(2 * np.pi * 1 * x)
 
 
 def r_cliff(x):
