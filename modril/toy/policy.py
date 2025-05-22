@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class PPO:
-    def __init__(self, state_dim, hidden_dim, action_dim, actor_lr, critic_lr, lmbda, epochs, eps, gamma, device):
+    def __init__(self, state_dim, action_dim, hidden_dim, actor_lr, critic_lr, lmbda, epochs, eps, gamma, device):
         self.actor = Actor(state_dim, hidden_dim, action_dim).to(device)
         self.critic = Critic(state_dim, hidden_dim).to(device)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)

@@ -1,12 +1,5 @@
 import numpy as np
-
-
-def norm_state(x_raw):
-    return (x_raw - 5.0) / 5.0 * np.pi
-
-
-def denorm_state(x_norm):
-    return x_norm * 5.0 / np.pi + 5.0
+from modril.toy.utils import norm_state, denorm_state
 
 
 class Environment:
