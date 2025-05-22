@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 import datetime
-from modril.reward_f.env import Environment
-from modril.reward_f.utils import norm_state
-from modril.reward_f.policy import PPO
-from modril.reward_f.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
-from modril.reward_f.discriminators import FFJORDDensity, FlowMatching
+from modril.toy.env import Environment
+from modril.toy.utils import norm_state
+from modril.toy.policy import PPO
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
+from modril.toy.discriminators import FFJORDDensity, FlowMatching
 
 
 class Trainer:

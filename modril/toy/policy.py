@@ -1,6 +1,6 @@
 import torch
-from modril.reward_f.networks import Actor, Critic
-from modril.reward_f.utils import compute_advantage
+from modril.toy.networks import Actor, Critic
+from modril.toy.utils import compute_advantage
 import torch.nn.functional as F
 
 

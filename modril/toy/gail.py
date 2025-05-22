@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from modril.reward_f.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
 import numpy as np
 
 

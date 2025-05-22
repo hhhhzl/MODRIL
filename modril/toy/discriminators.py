@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
-from modril.reward_f.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
-from modril.reward_f.utils import timestep_embed
+from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
+from modril.toy.utils import timestep_embed
 import torch.nn.functional as F
 from torchdiffeq import odeint
+
 
 class Discriminator(nn.Module):
     def __init__(
@@ -166,6 +167,7 @@ class FFJORDDensity(nn.Module):
     """
     log p(x) = log p(z_T) − ∫_0^T Tr(∂f/∂z_t) dt
     """
+
     def __init__(self, dim, T=1.0, hidden=64):
         super().__init__()
         self.T = T
@@ -200,7 +202,7 @@ class FFJORDDensity(nn.Module):
             t_span = torch.tensor([0., self.T], device=x.device)
             zT, logpT = odeint(self._odefunc, (z0, logp0), t_span, atol=atol, rtol=rtol)
         zT, logpT = zT[-1], logpT[-1].squeeze(1)
-        return self.prior.log_prob(zT) + logpT         # (B,)
+        return self.prior.log_prob(zT) + logpT  # (B,)
 
     # ---------- Training loss (NLL) ----------
     def nll(self, x, atol=1e-5, rtol=1e-5):
@@ -220,6 +222,7 @@ class FlowMatching(nn.Module):
     goal:  E_{t∼U(0,1)} [ || vθ(x_t,t) - v∗(x_t,t) ||² ]
     x_t = (1-t)·x + t·x̃  ，x̃~N(0,I)
     """
+
     def __init__(self, s_dim, a_dim, device, eps=1e-2):
         super().__init__()
         self.s_dim, self.a_dim = s_dim, a_dim
@@ -241,10 +244,10 @@ class FlowMatching(nn.Module):
         noise = self.prior.sample((B,)).to(x0)
         x_t = (1 - t) * x0 + t * noise
 
-        v_star = self._v_star(x_t, x0, t)       # [B, D]
-        v_pred = self.vnet(x_t, t)              # [B, D]
+        v_star = self._v_star(x_t, x0, t)  # [B, D]
+        v_pred = self.vnet(x_t, t)  # [B, D]
 
-        weight = (1 - t).pow(2)                 # [B,1]
+        weight = (1 - t).pow(2)  # [B,1]
         mse_per_sample = F.mse_loss(v_pred, v_star, reduction='none').sum(dim=1, keepdim=True)  # [B,1]
         loss = (weight * mse_per_sample).mean()
         return loss
