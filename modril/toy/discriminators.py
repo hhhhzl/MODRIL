@@ -138,11 +138,26 @@ class MI_Estimator:
 
     def estimate_and_update(self, s_E, a_E, s_A, a_A):
         """"""
-        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device).unsqueeze(1)
-        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device).unsqueeze(1)
-        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device).unsqueeze(1)
-        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device).unsqueeze(1)
+        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device)
+        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device)
+        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device)
+        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device)
 
+        # if they came in as 1-D, make them (batch,1)
+        if s_E.dim() == 1:
+            s_E = s_E.unsqueeze(1)
+
+        if a_E.dim() == 1:
+            a_E = a_E.unsqueeze(1)
+
+        if s_A.dim() == 1:
+            s_A = s_A.unsqueeze(1)
+
+        if a_A.dim() == 1:
+            a_A = a_A.unsqueeze(1)
+
+        x_E = torch.cat([s_E, a_E], dim=1)  # (batch, 2)
+        x_A = torch.cat([s_A, a_A], dim=1)  # (batch, 2)
         T_E = self.T(s_E, a_E)
         T_A = self.T(s_A, a_A)
 

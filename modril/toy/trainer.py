@@ -240,7 +240,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('poly', 'mine')
+    tr = Trainer('sine', 'ffjord')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))

@@ -67,7 +67,8 @@ class GAIL:
 
 class DRAIL:
     def __init__(self, agent, state_dim, action_dim, device, disc_lr=1e-3, label_dim=10, epochs=5):
-        self.discriminator = Discriminator(mode="mfd", state_dim=state_dim, action_dim=action_dim, label_dim=label_dim).to(device)
+        self.discriminator = Discriminator(mode="mfd", state_dim=state_dim, action_dim=action_dim,
+                                           label_dim=label_dim).to(device)
         self.opt = torch.optim.Adam(self.discriminator.parameters(), lr=disc_lr)
         self.agent = agent
         self.device = device
@@ -75,7 +76,8 @@ class DRAIL:
         self.epochs = epochs
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32, device=self.device)
+        xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32,
+                            device=self.device)
         xs_A = torch.tensor(np.stack([agent_s, agent_a], axis=1), dtype=torch.float32, device=self.device)
         # now (batch, 2)
         xs_E = xs_E.view(xs_E.size(0), -1)
@@ -134,12 +136,14 @@ class GAIL_MI:
                                dones=[False] * len(agent_s))
         self.agent.update(transition_dict)
 
+
 class GAIL_Flow:
     """
     mode = 'ffjord'  or  'fm'
     density_E  -- offline  pre-trained   (固定)
     density_A  -- online   1-2 step
     """
+
     def __init__(self, agent, state_dim, action_dim, device, mode="ffjord", lr=1e-3):
         self.mode = mode
         dim = state_dim + action_dim
@@ -162,7 +166,7 @@ class GAIL_Flow:
         a_A: [B, action_dim]
         """
         if self.mode == "ffjord":
-            xs_A = torch.cat([s_A, a_A], dim=1)    # [B, state_dim+action_dim]
+            xs_A = torch.cat([s_A, a_A], dim=1)  # [B, state_dim+action_dim]
             loss = self.A.nll(xs_A)
         else:
             loss = self.A.c_fm_loss(s_A, a_A)
@@ -175,7 +179,7 @@ class GAIL_Flow:
         # xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
         s_A = torch.tensor(agent_s, dtype=torch.float32, device=self.device)
         a_A = torch.tensor(agent_a, dtype=torch.float32, device=self.device)
-        xs_A = torch.tensor(np.stack([agent_s,  agent_a], 1), dtype=torch.float32, device=self.device)
+        xs_A = torch.tensor(np.stack([agent_s, agent_a], 1), dtype=torch.float32, device=self.device)
         if s_A.dim() == 1:
             s_A = s_A.unsqueeze(-1)
         if a_A.dim() == 1:
@@ -186,7 +190,7 @@ class GAIL_Flow:
             logp_E = self.E.log_prob(xs_A).cpu().numpy()
             logp_A = self.A.log_prob(xs_A).cpu().numpy()
             rewards = logp_E - logp_A
-            rewards = (rewards - rewards.mean()) / (rewards.std()+1e-8)
+            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
 
         self.agent.update(
             dict(
@@ -194,7 +198,6 @@ class GAIL_Flow:
                 actions=agent_a,
                 rewards=rewards,
                 next_states=next_s,
-                dones=[False]*len(agent_s)
+                dones=[False] * len(agent_s)
             )
         )
-
