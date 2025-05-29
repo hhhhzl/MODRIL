@@ -2,6 +2,27 @@ import numpy as np
 from modril.toy.utils import norm_state, denorm_state
 
 
+class Environment2D:
+    """
+    for 2D surface toy tasks
+    """
+
+    def __init__(self, s_norm, a_norm):
+        self.s_norm = s_norm  # np.ndarray shape (N,2)
+        self.a_norm = a_norm  # np.ndarray shape (N,1)
+
+    def reset(self):
+        idx = np.random.randint(len(self.s_norm))
+        return self.s_norm[idx]
+
+    def step(self, state_norm, pred_a_norm):
+        dists = np.linalg.norm(self.s_norm - state_norm, axis=1)
+        idx = dists.argmin()
+        true_a_norm = self.a_norm[idx]
+        next_state = self.reset()
+        return next_state, true_a_norm
+
+
 class Environment:
     def __init__(self, data_raw, x_raw):
         """

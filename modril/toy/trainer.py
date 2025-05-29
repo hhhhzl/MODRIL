@@ -9,15 +9,23 @@ from modril.toy.utils import norm_state
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
 from modril.toy.discriminators import FFJORDDensity, FlowMatching
-from modril.toy.toy_tasks import Sine1D, TwoMoons2D
+from modril.toy.toy_tasks import *
 
 
 # --- Trainer refactored --- #
 class Trainer:
     # register tasks
+    # Registry for tasks
     TASK_REGISTRY = {
         'sine': Sine1D,
-        'two_moons': TwoMoons2D,
+        'multi_sine': MultiSine1D,
+        'gauss_sine': GaussSine1D,
+        'poly': Poly1D,
+        'gaussian_hill': GaussianHill2D,
+        'mexican_hat': MexicanHat2D,
+        'saddle': Saddle2D,
+        'ripple': SinusoidalRipple2D,
+        'bimodal_gaussian': BimodalGaussian2D,
     }
 
     def __init__(
@@ -75,7 +83,7 @@ class Trainer:
         self._init_trainer(method)
 
     def _init_trainer(self, method, **kwargs):
-        if method == 'base':
+        if method == 'gail':
             self.trainer = GAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, self.lr, device=self.device)
         elif method == 'drail':
             self.trainer = DRAIL(self.agent, self.state_dim, self.action_dim, disc_lr=self.lr, device=self.device)
@@ -232,7 +240,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'drail')
+    tr = Trainer('poly', 'mine')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))

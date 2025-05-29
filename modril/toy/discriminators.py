@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
         self.mode = mode
         self.n_repeat = n_repeat
 
-        if mode == 'base':
+        if mode == 'gail':
             assert all(
                 [v is not None for v in [state_dim, action_dim, hidden_dim]]), "Missing parameters for standard mode"
             self.state_dim = state_dim
@@ -63,7 +63,7 @@ class Discriminator(nn.Module):
             raise ValueError(f"Invalid mode: {mode}")
 
     def forward(self, *inputs, **kwargs):
-        if self.mode == 'base':
+        if self.mode == 'gail':
             s, a = inputs
             s = s.unsqueeze(-1) if s.dim() == 1 else s
             a = a.unsqueeze(-1) if a.dim() == 1 else a

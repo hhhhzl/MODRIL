@@ -16,7 +16,7 @@ class GAIL:
             epochs=5,
             device='cuda'
     ):
-        self.discriminator = Discriminator(mode="base", state_dim=state_dim, action_dim=action_dim,
+        self.discriminator = Discriminator(mode="gail", state_dim=state_dim, action_dim=action_dim,
                                            hidden_dim=hidden_dim).to(device)
         self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=lr_d)
         self.agent = agent
