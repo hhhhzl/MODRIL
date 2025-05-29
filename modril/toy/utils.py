@@ -4,6 +4,12 @@ import numpy as np
 import torch.nn as nn
 
 
+def normalize(x):
+    mu = x.mean(axis=0, keepdims=True)
+    std = x.std(axis=0, keepdims=True).clip(min=1e-6)
+    return (x - mu) / std, mu, std
+
+
 def reset_weights(m):
     if isinstance(m, nn.Linear):
         m.reset_parameters()

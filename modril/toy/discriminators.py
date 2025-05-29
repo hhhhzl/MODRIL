@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
         self.mode = mode
         self.n_repeat = n_repeat
 
-        if mode == 'base':
+        if mode == 'gail':
             assert all(
                 [v is not None for v in [state_dim, action_dim, hidden_dim]]), "Missing parameters for standard mode"
             self.state_dim = state_dim
@@ -63,7 +63,7 @@ class Discriminator(nn.Module):
             raise ValueError(f"Invalid mode: {mode}")
 
     def forward(self, *inputs, **kwargs):
-        if self.mode == 'base':
+        if self.mode == 'gail':
             s, a = inputs
             s = s.unsqueeze(-1) if s.dim() == 1 else s
             a = a.unsqueeze(-1) if a.dim() == 1 else a
@@ -87,6 +87,11 @@ class Discriminator(nn.Module):
     # ===================================
     def _mfd_q_sample(self, x0, t, eps):
         """forward diffusion"""
+        # B = x0.size(0)
+        # x0_flat = x0.view(B, -1)  # (B, x_dim)
+        # eps_flat = eps.view(B, -1)  # (B, x_dim)
+        # a_bar = self.alphas_bar[t].view(-1, 1)
+        # return (a_bar.sqrt() * x0_flat) + ((1 - a_bar).sqrt() * eps_flat)
         a_bar = self.alphas_bar[t].view(-1, 1)
         return (a_bar.sqrt() * x0) + ((1 - a_bar).sqrt() * eps)
 
@@ -133,11 +138,26 @@ class MI_Estimator:
 
     def estimate_and_update(self, s_E, a_E, s_A, a_A):
         """"""
-        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device).unsqueeze(1)
-        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device).unsqueeze(1)
-        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device).unsqueeze(1)
-        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device).unsqueeze(1)
+        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device)
+        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device)
+        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device)
+        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device)
 
+        # if they came in as 1-D, make them (batch,1)
+        if s_E.dim() == 1:
+            s_E = s_E.unsqueeze(1)
+
+        if a_E.dim() == 1:
+            a_E = a_E.unsqueeze(1)
+
+        if s_A.dim() == 1:
+            s_A = s_A.unsqueeze(1)
+
+        if a_A.dim() == 1:
+            a_A = a_A.unsqueeze(1)
+
+        x_E = torch.cat([s_E, a_E], dim=1)  # (batch, 2)
+        x_A = torch.cat([s_A, a_A], dim=1)  # (batch, 2)
         T_E = self.T(s_E, a_E)
         T_A = self.T(s_A, a_A)
 
