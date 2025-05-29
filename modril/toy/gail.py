@@ -67,8 +67,7 @@ class GAIL:
 
 class DRAIL:
     def __init__(self, agent, state_dim, action_dim, device, disc_lr=1e-3, label_dim=10, epochs=5):
-        self.discriminator = Discriminator(mode="mfd", state_dim=state_dim, action_dim=action_dim,
-                                           label_dim=label_dim).to(device)
+        self.discriminator = Discriminator(mode="mfd", state_dim=state_dim, action_dim=action_dim, label_dim=label_dim).to(device)
         self.opt = torch.optim.Adam(self.discriminator.parameters(), lr=disc_lr)
         self.agent = agent
         self.device = device
@@ -76,8 +75,11 @@ class DRAIL:
         self.epochs = epochs
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
-        xs_A = torch.tensor(np.stack([agent_s, agent_a], 1), dtype=torch.float32, device=self.device)
+        xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32, device=self.device)
+        xs_A = torch.tensor(np.stack([agent_s, agent_a], axis=1), dtype=torch.float32, device=self.device)
+        # now (batch, 2)
+        xs_E = xs_E.view(xs_E.size(0), -1)
+        xs_A = xs_A.view(xs_A.size(0), -1)
 
         for _ in range(self.epochs):
             D_E = self.discriminator(xs_E)

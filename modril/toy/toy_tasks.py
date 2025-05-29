@@ -10,14 +10,16 @@ class TaskBase:
         raise NotImplementedError
 
     @property
-    def state_dim(self): raise NotImplementedError
+    def state_dim(self):
+        raise NotImplementedError
 
     @property
-    def action_dim(self): raise NotImplementedError
+    def action_dim(self):
+        raise NotImplementedError
 
 
 class Sine1D(TaskBase):
-    def __init__(self, amplitude=1.0, freq=0.1, scale=2.0, phase=0.0, noise_std=0.05, n_points=1000):
+    def __init__(self, amplitude=1.0, freq=0.1, scale=20.0, phase=0.0, noise_std=0.05, n_points=1000):
         # generate expert trajectory
         x = np.linspace(0, 10, n_points)
         y = amplitude * np.sin(scale * freq * np.pi * x + phase)
@@ -56,10 +58,12 @@ class TwoMoons2D(TaskBase):
         self.env = None
 
     @property
-    def state_dim(self): return 2
+    def state_dim(self):
+        return 2
 
     @property
-    def action_dim(self): return 0
+    def action_dim(self):
+        return 0
 
     def sample_expert(self, n_samples=None):
         return self.expert_s

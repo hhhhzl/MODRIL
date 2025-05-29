@@ -36,6 +36,7 @@ class Trainer:
             lr_d=1e-3,
             **kwargs
     ):
+        self.state_list = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.method = method
         # init task
@@ -164,8 +165,11 @@ class Trainer:
                     state = next_state
                 # use numpy expert arrays for training
                 self.trainer.learn(
-                    self.task.expert_s, self.task.expert_a,
-                    state_list, action_list, next_state_list
+                    self.task.expert_s, 
+                    self.task.expert_a,
+                    state_list, 
+                    action_list, 
+                    next_state_list
                 )
                 pbar.update(1)
         self.state_list = state_list
@@ -228,7 +232,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'base')
+    tr = Trainer('sine', 'drail')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))
