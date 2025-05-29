@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
 import numpy as np
+from modril.modril.model_base_diffusion import MBDScore
 
 
 class GAIL:
@@ -201,3 +202,32 @@ class GAIL_Flow:
                 dones=[False] * len(agent_s)
             )
         )
+
+# ============================================================
+#  Model-Based Diffusion - occupancy-reward
+# ============================================================
+class GAIL_MBD:
+    """"""
+    def __init__(
+            self,
+            agent,
+            env,
+            env_name: str,
+            device='cuda',
+            mbd_kwargs: dict | None = None
+    ):
+        self.mbd = MBDScore(env, env_name, device=device,**(mbd_kwargs or {}))
+        self.agent = agent
+        self.device = device
+
+    def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
+        rewards = self.mbd.compute_reward(expert_a, agent_a)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+
+        self.agent.update(dict(
+            states=agent_s,
+            actions=agent_a,
+            rewards=rewards,
+            next_states=next_s,
+            dones=[False] * len(agent_s)
+        ))

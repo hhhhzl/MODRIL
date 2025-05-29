@@ -156,8 +156,6 @@ class MI_Estimator:
         if a_A.dim() == 1:
             a_A = a_A.unsqueeze(1)
 
-        x_E = torch.cat([s_E, a_E], dim=1)  # (batch, 2)
-        x_A = torch.cat([s_A, a_A], dim=1)  # (batch, 2)
         T_E = self.T(s_E, a_E)
         T_A = self.T(s_A, a_A)
 

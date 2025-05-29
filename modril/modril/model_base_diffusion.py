@@ -9,9 +9,12 @@ class MBDScore:
             env,
             env_name,
             seed=0,
-            enable_demo=False,
             disable_recommended_params=False,
-            device='cpu'
+            device='cpu',
+            temp_sample: float = 0.1,
+            num_diffusion_steps: int = 1000,
+            num_mc: int = 32,
+            use_reward_score=True
     ):
         """
         Initialize the diffusion-based trajectory optimizer with PyTorch.
@@ -27,8 +30,8 @@ class MBDScore:
         self.device = device
         self.env = env
         self.env_name = env_name
-        self.enable_demo = enable_demo
         self.disable_recommended_params = disable_recommended_params
+        self.use_reward_score = use_reward_score
 
         # Set random seed
         torch.manual_seed(seed)
@@ -37,16 +40,20 @@ class MBDScore:
         # Default parameters
         self.temp_sample = 0.1
         self.Ndiffuse = 100
-        self.Nsample = 8192
+        self.Nsample = 200
         self.Hsample = 40
         self.beta0 = 1e-4
         self.betaT = 0.02
+
+        self.num_diffusion_steps = num_diffusion_steps
+        self.alphas = torch.linspace(1.0, 1e-3, num_diffusion_steps + 1, device=self.device)
+        self.num_mc = num_mc
 
         # Recommended parameters for specific environments
         self.recommended_params = {
             "temp_sample": {"mdoc": 0.1},
             "Ndiffuse": {"mdoc": 100},
-            "Nsample": {"mdoc": 8192},
+            "Nsample": {"mdoc": 200},
             "Hsample": {"mdoc": 40}
         }
 
@@ -102,36 +109,23 @@ class MBDScore:
         Yi = Ybar_i * torch.sqrt(self.alphas_bar[i])
 
         # Sample from q_i
-        eps_u = torch.randn((self.Nsample, self.Hsample, self.Nu), device=self.device)
+        eps_u = torch.randn((self.num_diffusion_steps, self.Hsample, self.Nu), device=self.device)
         Y0s = eps_u * self.sigmas[i] + Ybar_i
         Y0s = torch.clamp(Y0s, -1.0, 1.0)
 
         # Evaluate sampled trajectories
         rewss = []
-        qs = []
         for j in range(self.Nsample):
             # Convert to numpy for environment compatibility
             actions = Y0s[j].cpu().numpy() if self.device != 'cpu' else Y0s[j].numpy()
-            rews, q = self.rollout(self.state_init, actions)
+            rews, q = self._rollout(self.state_init, actions)
             rewss.append(rews)
-            qs.append(q)
 
         rews = torch.tensor(np.mean(rewss, axis=-1), device=self.device)
         rew_std = rews.std()
         rew_std = torch.where(rew_std < 1e-4, torch.tensor(1.0, device=self.device), rew_std)
         rew_mean = rews.mean()
         logp0 = (rews - rew_mean) / rew_std / self.temp_sample
-
-        # Incorporate demonstration if enabled
-        if self.enable_demo:
-            xref_logpds = torch.tensor([self.env.eval_xref_logpd(q) for q in qs], device=self.device)
-            xref_logpds = xref_logpds - xref_logpds.max()
-            logpdemo = (
-                    (xref_logpds + self.env.rew_xref - rew_mean) / rew_std / self.temp_sample
-            )
-            demo_mask = logpdemo > logp0
-            logp0 = torch.where(demo_mask, logpdemo, logp0)
-            logp0 = (logp0 - logp0.mean()) / logp0.std() / self.temp_sample
 
         # Update trajectory using weighted average
         weights = torch.nn.functional.softmax(logp0, dim=0)
@@ -142,9 +136,28 @@ class MBDScore:
         Yim1 = 1 / torch.sqrt(self.alphas[i]) * (Yi + (1.0 - self.alphas_bar[i]) * score)
         Ybar_im1 = Yim1 / torch.sqrt(self.alphas_bar[i - 1])
 
-        return Ybar_im1, rews.mean().item()
+        return score, Yim1, Ybar_im1, rews.mean().item()
 
-    def rollout(self, state, actions):
+    def _reverse_diffusion_step_prior(self, y_i, i):
+        B, D = y_i.shape
+        alpha_i = self.alphas[i]
+        sqrt_ai = torch.sqrt(alpha_i)
+        sqrt_one_minus_ai = torch.sqrt(1.0 - alpha_i)
+
+        # sampling y0^{(m)}，and calculate ∇_{y0} log p_0 (若 p_0 ~ 𝒩(0,𝟙) ⇒ grad = −y0)
+        eps = torch.randn(B, self.num_mc, D, device=y_i.device)
+        y0 = (y_i.unsqueeze(1) - sqrt_ai * eps) / sqrt_one_minus_ai  # [B,M,D]
+        grad_y0 = -y0  # ∇ log p_0
+
+        # importance weights  w ∝ p_0(y0)
+        logw = -0.5 * (y0 ** 2).sum(dim=-1)  # [B,M]
+        w = torch.softmax(logw, dim=1).unsqueeze(-1)  # [B,M,1]
+
+        grad_est = (w * grad_y0).sum(dim=1)  # [B,D]
+        score_yi = (y_i / (1.0 - alpha_i)) + (sqrt_ai / (1.0 - alpha_i)) * grad_est
+        return score_yi
+
+    def _rollout(self, state, actions):
         """Rollout trajectory given initial state and actions."""
         rews = []
         states = [state]
@@ -155,36 +168,101 @@ class MBDScore:
             if done:
                 break
         return np.array(rews), states
+    def _rollout_b(self, states0, actions):
+        """ Batched rollout."""
+        B, T = actions.shape[:2]
+        rews = np.zeros((B, T), dtype=np.float32)
+        states = [states0.copy()]  # list 长 T+1
+        cur_states = states0.copy()
+        done_mask = np.zeros(B, dtype=bool)  # False = still alive
+
+        for t in range(T):
+            a_t = actions[:, t] # a_t: [B, Nu]
+
+            if hasattr(self.env, "batch_step"):
+                next_states, r_t, done_t, _ = self.env.batch_step(cur_states, a_t)
+            else:
+                next_states = []
+                r_t = np.zeros(B, dtype=np.float32)
+                done_t = np.zeros(B, dtype=bool)
+                for b in range(B):
+                    if done_mask[b]:
+                        next_states.append(cur_states[b])
+                        continue
+                    ns, rb, db, _ = self.env.step(cur_states[b], a_t[b])
+                    next_states.append(ns)
+                    r_t[b] = rb
+                    done_t[b] = db
+            next_states = np.asarray(next_states)
+            rews[~done_mask, t] = r_t[~done_mask]
+            done_mask |= done_t
+
+            cur_states = next_states
+            states.append(cur_states.copy())
+
+            if done_mask.all():
+                states.extend([cur_states.copy()] * (T - t - 1))
+                break
+        return rews, states
 
     def compute_reward(self, Ye, Ya):
-        pass
-
-    def run(self):
         """
-        Run the full diffusion-based trajectory optimization.
-        Args:
-            render: Whether to render/save the final trajectory
-
-        Returns:
-            Final optimized trajectory and its mean reward
+        Occupancy log-ratio
+        :param Ye: expert action batch
+        :param Ya: agent  action batch
+        :return:
+        rewards
         """
-        self._setup_diffusion_params()
-        # Initialize with zero trajectory
-        YN = torch.zeros((self.Hsample, self.Nu), device=self.device)
-        # Run reverse diffusion
-        Yi = YN
-        Ybars = []
-        rewards = []
-        with tqdm(range(self.Ndiffuse - 1, 0, -1), desc="Diffusing") as pbar:
+        Ye = torch.as_tensor(Ye, dtype=torch.float32, device=self.device)
+        Ya = torch.as_tensor(Ya, dtype=torch.float32, device=self.device)
+        with torch.no_grad():
+            if self.use_reward_score:
+                g_E = self._logp_change_reward(Ye)
+                g_A = self._logp_change_reward(Ya)
+            else:
+                g_E = self._estimate_logp_change(Ye)
+                g_A = self._estimate_logp_change(Ya)
+        return (g_E - g_A).cpu().numpy()
+
+    def _foward_diffusion(self, Y0: torch.Tensor) -> torch.Tensor:
+        y = Y0.clone()
+        for i in range(1, self.num_diffusion_steps + 1):
+            eps = torch.randn_like(y)
+            alpha_i = self.alphas[i]  # α_i
+            y = torch.sqrt(alpha_i) * y + torch.sqrt(1.0 - alpha_i) * eps  # Y_i
+        alpha_bar_N = self.alphas_bar[self.num_diffusion_steps]  # \bar α_N
+        y_bar_N = y / torch.sqrt(alpha_bar_N)
+        return y_bar_N
+
+    def _estimate_logp_change(self, y0):
+        B, D = y0.shape
+        alphas = self.alphas  # [N+1]
+        # forward diffusion y0 -> yN
+        y_i = self._foward_diffusion(y0)
+        # ---------- reverse accumulation ----------
+        logp_change = torch.zeros(B, device=self.device)
+        with tqdm(range(self.num_diffusion_steps - 1, 0, -1), desc="Diffusing") as pbar:
             for i in pbar:
-                Yi, rew = self._reverse_diffusion_step(i, Yi)
-                Ybars.append(Yi)
-                rewards.append(rew)
-                pbar.set_postfix({"rew": f"{rew:.2e}"})
+                a_i = alphas[i]  # α_i
+                a_prev = alphas[i - 1]  # α_{i-1}
+                score = self._reverse_diffusion_step_prior(y_i, i)
+                beta_i = 1.0 - a_prev / a_i
+                std = torch.sqrt(beta_i)
+                eps = torch.randn_like(y_i)
+                y_prev = (1.0 / torch.sqrt(a_prev)) * (y_i - std * eps)
+                logp_change += (score * (y_prev - y_i)).sum(dim=-1)
+                y_i = y_prev  # for next iteration
 
-        Ybars = torch.stack(Ybars)
-        # Evaluate final reward
-        final_actions = Ybars[-1].cpu().numpy() if self.device != 'cpu' else Ybars[-1].numpy()
-        rewss_final, _ = self.rollout(self.state_init, final_actions)
-        rew_final = np.mean(rewss_final)
-        return Ybars[-1], rew_final
+        return logp_change
+
+    def _logp_change_reward(self, Y0):
+        """
+        reward-weighted reverse steps estimation
+        """
+        Ybar = self._foward_diffusion(Y0)
+        g = torch.zeros(Y0.shape[0], device=self.device)
+
+        for i in reversed(range(1, self.num_diffusion_steps + 1)):
+            score, Y_i_minus1, Ybar, _ = self._reverse_diffusion_step(i, Ybar)
+            g += (score * Y_i_minus1 - (Ybar * torch.sqrt(self.alphas_bar[i]))).sum(dim=-1)
+        return g
