@@ -24,7 +24,7 @@ class Environment2D:
 
 
 class Environment:
-    def __init__(self, data_raw, x_raw):
+    def __init__(self, data_raw, x_raw, state_dim, action_dim):
         """
         data_raw : ndarray  shape (N,2) ,  [:,0] = x_raw , [:,1] = y
         x_raw    : ndarray
@@ -33,6 +33,8 @@ class Environment:
         self.x_norm = norm_state(x_raw)  # (−π,π)
         self.data_raw = data_raw  #
         self.tolerance = 1e-3
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def _raw_to_norm(self, x):
         return norm_state(x)
@@ -51,5 +53,10 @@ class Environment:
 
     def step(self, state_norm, predicted_y):
         true_y = self.get_true_y(state_norm)
+        error = predicted_y - true_y
+        reward = - error ** 2
+        reward = sum(reward) / len(reward)
+        done = True
         next_state = self.reset()
-        return next_state, true_y
+        info = {"true_y": true_y, "error": error}
+        return next_state, reward, done, info

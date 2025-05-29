@@ -7,7 +7,7 @@ import datetime
 from modril.toy.env import Environment
 from modril.toy.utils import norm_state
 from modril.toy.policy import PPO
-from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD
 from modril.toy.discriminators import FFJORDDensity, FlowMatching
 from modril.toy.toy_tasks import *
 
@@ -33,7 +33,7 @@ class Trainer:
             function,
             method,
             n_episode=1000,
-            steps=100,
+            steps=1000,
             hidden_dim=128,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -91,6 +91,8 @@ class Trainer:
             self.trainer = GAIL_MI(self.agent, self.state_dim, self.action_dim, disc_lr=self.lr, device=self.device, mode=method)
         elif method in ('ffjord', 'fm'):
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method, lr=1e-3)
+        elif method == 'modril':
+            self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device)
         else:
             raise ValueError(f"Unknown method {method}")
 
@@ -166,7 +168,8 @@ class Trainer:
                 state_list, action_list, next_state_list = [], [], []
                 for step in range(self.steps):
                     action = self.agent.take_action(state)
-                    next_state, true_y = self.env.step(state, action)
+                    next_state, reward, done, info = self.env.step(state, action)
+                    # next_state, true_y = self.env.step(state, action)
                     state_list.append(state)
                     action_list.append(action)
                     next_state_list.append(next_state)

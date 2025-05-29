@@ -203,11 +203,13 @@ class GAIL_Flow:
             )
         )
 
+
 # ============================================================
 #  Model-Based Diffusion - occupancy-reward
 # ============================================================
 class GAIL_MBD:
     """"""
+
     def __init__(
             self,
             agent,
@@ -216,7 +218,7 @@ class GAIL_MBD:
             device='cuda',
             mbd_kwargs: dict | None = None
     ):
-        self.mbd = MBDScore(env, env_name, device=device,**(mbd_kwargs or {}))
+        self.mbd = MBDScore(env, env_name, device=device, **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
 

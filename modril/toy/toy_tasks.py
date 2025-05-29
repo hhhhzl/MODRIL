@@ -30,7 +30,7 @@ class Sine1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x)
+        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -57,7 +57,7 @@ class MultiSine1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x)
+        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -84,7 +84,7 @@ class GaussSine1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x)
+        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -111,7 +111,7 @@ class Poly1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x)
+        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):

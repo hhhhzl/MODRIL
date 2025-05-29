@@ -14,7 +14,7 @@ class MBDScore:
             temp_sample: float = 0.1,
             num_diffusion_steps: int = 1000,
             num_mc: int = 32,
-            use_reward_score=True
+            use_reward_score=False
     ):
         """
         Initialize the diffusion-based trajectory optimizer with PyTorch.
@@ -38,41 +38,42 @@ class MBDScore:
         np.random.seed(seed)
 
         # Default parameters
-        self.temp_sample = 0.1
-        self.Ndiffuse = 100
         self.Nsample = 200
         self.Hsample = 40
+        self.num_diffusion_steps = num_diffusion_steps
+        self.num_mc = num_mc
+        self.alphas = torch.linspace(1.0, 1e-3, num_diffusion_steps + 1, device=self.device)
+
+        self.temp_sample = temp_sample
         self.beta0 = 1e-4
         self.betaT = 0.02
 
-        self.num_diffusion_steps = num_diffusion_steps
-        self.alphas = torch.linspace(1.0, 1e-3, num_diffusion_steps + 1, device=self.device)
-        self.num_mc = num_mc
 
         # Recommended parameters for specific environments
         self.recommended_params = {
-            "temp_sample": {"mdoc": 0.1},
-            "Ndiffuse": {"mdoc": 100},
-            "Nsample": {"mdoc": 200},
-            "Hsample": {"mdoc": 40}
+            "temp_sample": {"toy": 0.1},
+            "num_diffusion_steps": {"toy": 100},
+            "Nsample": {"toy": 200},
+            "Hsample": {"toy": 1000}
         }
 
         # Initialize environment parameters
         self._setup_environment()
+        self._setup_diffusion_params()
 
     def _setup_environment(self):
         """Initialize the environment and related parameters."""
         # Apply recommended parameters if not disabled
         if not self.disable_recommended_params:
-            for param_name in ["temp_sample", "Ndiffuse", "Nsample", "Hsample"]:
+            for param_name in ["temp_sample", "num_diffusion_steps", "Nsample", "Hsample"]:
                 recommended_value = self.recommended_params[param_name].get(
                     self.env_name, getattr(self, param_name)
                 )
                 setattr(self, param_name, recommended_value)
             print(f"Using recommended parameters: temp_sample={self.temp_sample}")
 
-        self.Nx = self.env.observation_size
-        self.Nu = self.env.action_size
+        self.Nx = self.env.state_dim
+        self.Nu = self.env.action_dim
 
         # Reset environment to initial state
         self.state_init = self.env.reset()
@@ -80,7 +81,7 @@ class MBDScore:
     def _setup_diffusion_params(self):
         """Calculate diffusion process parameters."""
         # Create tensors on the specified device
-        self.betas = torch.linspace(self.beta0, self.betaT, self.Ndiffuse, device=self.device)
+        self.betas = torch.linspace(self.beta0, self.betaT, self.num_diffusion_steps, device=self.device)
         self.alphas = 1.0 - self.betas
         self.alphas_bar = torch.cumprod(self.alphas, dim=0)
         self.sigmas = torch.sqrt(1 - self.alphas_bar)
@@ -92,7 +93,15 @@ class MBDScore:
         self.sigmas_cond = torch.sqrt(Sigmas_cond)
         self.sigmas_cond[0] = 0.0
 
-        print(f"Initial sigma = {self.sigmas[-1].item():.2e}")
+    def _foward_diffusion(self, Y0: torch.Tensor) -> torch.Tensor:
+        y = Y0.clone()
+        for i in range(self.num_diffusion_steps):
+            eps = torch.randn_like(y)
+            alpha_i = self.alphas[i]  # α_i
+            y = torch.sqrt(alpha_i) * y + torch.sqrt(1.0 - alpha_i) * eps  # Y_i
+        alpha_bar_N = self.alphas_bar[self.num_diffusion_steps-1]  # \bar α_N
+        y_bar_N = y / torch.sqrt(alpha_bar_N)
+        return y_bar_N
 
     def _reverse_diffusion_step(self, i, Ybar_i):
         """
@@ -109,7 +118,9 @@ class MBDScore:
         Yi = Ybar_i * torch.sqrt(self.alphas_bar[i])
 
         # Sample from q_i
-        eps_u = torch.randn((self.num_diffusion_steps, self.Hsample, self.Nu), device=self.device)
+
+        eps_u = torch.randn((self.Nsample, self.Hsample, self.Nu), device=self.device, dtype=Ybar_i.dtype)
+        # Y0s = eps_u * self.sigmas[i] + Ybar_i.unsqueeze(0)
         Y0s = eps_u * self.sigmas[i] + Ybar_i
         Y0s = torch.clamp(Y0s, -1.0, 1.0)
 
@@ -129,6 +140,7 @@ class MBDScore:
 
         # Update trajectory using weighted average
         weights = torch.nn.functional.softmax(logp0, dim=0)
+        Y0s = Y0s.to(weights.dtype)
         Ybar = torch.einsum("n,nij->ij", weights, Y0s)
 
         # Compute score function and update
@@ -138,13 +150,12 @@ class MBDScore:
 
         return score, Yim1, Ybar_im1, rews.mean().item()
 
-    def _reverse_diffusion_step_prior(self, y_i, i):
+    def _reverse_diffusion_step_prior(self, i, y_i):
         B, D = y_i.shape
         alpha_i = self.alphas[i]
         sqrt_ai = torch.sqrt(alpha_i)
         sqrt_one_minus_ai = torch.sqrt(1.0 - alpha_i)
 
-        # sampling y0^{(m)}，and calculate ∇_{y0} log p_0 (若 p_0 ~ 𝒩(0,𝟙) ⇒ grad = −y0)
         eps = torch.randn(B, self.num_mc, D, device=y_i.device)
         y0 = (y_i.unsqueeze(1) - sqrt_ai * eps) / sqrt_one_minus_ai  # [B,M,D]
         grad_y0 = -y0  # ∇ log p_0
@@ -168,6 +179,7 @@ class MBDScore:
             if done:
                 break
         return np.array(rews), states
+
     def _rollout_b(self, states0, actions):
         """ Batched rollout."""
         B, T = actions.shape[:2]
@@ -175,10 +187,8 @@ class MBDScore:
         states = [states0.copy()]  # list 长 T+1
         cur_states = states0.copy()
         done_mask = np.zeros(B, dtype=bool)  # False = still alive
-
         for t in range(T):
-            a_t = actions[:, t] # a_t: [B, Nu]
-
+            a_t = actions[:, t]  # a_t: [B, Nu]
             if hasattr(self.env, "batch_step"):
                 next_states, r_t, done_t, _ = self.env.batch_step(cur_states, a_t)
             else:
@@ -196,10 +206,8 @@ class MBDScore:
             next_states = np.asarray(next_states)
             rews[~done_mask, t] = r_t[~done_mask]
             done_mask |= done_t
-
             cur_states = next_states
             states.append(cur_states.copy())
-
             if done_mask.all():
                 states.extend([cur_states.copy()] * (T - t - 1))
                 break
@@ -215,6 +223,13 @@ class MBDScore:
         """
         Ye = torch.as_tensor(Ye, dtype=torch.float32, device=self.device)
         Ya = torch.as_tensor(Ya, dtype=torch.float32, device=self.device)
+
+        if Ye.dim() == 1:
+            Ye = Ye.unsqueeze(1)
+
+        if Ya.dim() == 1:
+            Ya = Ya.unsqueeze(1)
+
         with torch.no_grad():
             if self.use_reward_score:
                 g_E = self._logp_change_reward(Ye)
@@ -223,16 +238,6 @@ class MBDScore:
                 g_E = self._estimate_logp_change(Ye)
                 g_A = self._estimate_logp_change(Ya)
         return (g_E - g_A).cpu().numpy()
-
-    def _foward_diffusion(self, Y0: torch.Tensor) -> torch.Tensor:
-        y = Y0.clone()
-        for i in range(1, self.num_diffusion_steps + 1):
-            eps = torch.randn_like(y)
-            alpha_i = self.alphas[i]  # α_i
-            y = torch.sqrt(alpha_i) * y + torch.sqrt(1.0 - alpha_i) * eps  # Y_i
-        alpha_bar_N = self.alphas_bar[self.num_diffusion_steps]  # \bar α_N
-        y_bar_N = y / torch.sqrt(alpha_bar_N)
-        return y_bar_N
 
     def _estimate_logp_change(self, y0):
         B, D = y0.shape
@@ -245,14 +250,13 @@ class MBDScore:
             for i in pbar:
                 a_i = alphas[i]  # α_i
                 a_prev = alphas[i - 1]  # α_{i-1}
-                score = self._reverse_diffusion_step_prior(y_i, i)
+                score = self._reverse_diffusion_step_prior(i, y_i)
                 beta_i = 1.0 - a_prev / a_i
                 std = torch.sqrt(beta_i)
                 eps = torch.randn_like(y_i)
                 y_prev = (1.0 / torch.sqrt(a_prev)) * (y_i - std * eps)
                 logp_change += (score * (y_prev - y_i)).sum(dim=-1)
                 y_i = y_prev  # for next iteration
-
         return logp_change
 
     def _logp_change_reward(self, Y0):
@@ -261,8 +265,7 @@ class MBDScore:
         """
         Ybar = self._foward_diffusion(Y0)
         g = torch.zeros(Y0.shape[0], device=self.device)
-
-        for i in reversed(range(1, self.num_diffusion_steps + 1)):
+        for i in reversed(range(0, self.num_diffusion_steps)):
             score, Y_i_minus1, Ybar, _ = self._reverse_diffusion_step(i, Ybar)
             g += (score * Y_i_minus1 - (Ybar * torch.sqrt(self.alphas_bar[i]))).sum(dim=-1)
         return g
