@@ -33,7 +33,7 @@ class Trainer:
             function,
             method,
             n_episode=1000,
-            steps=1000,
+            steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -92,7 +92,7 @@ class Trainer:
         elif method in ('ffjord', 'fm'):
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method, lr=1e-3)
         elif method == 'modril':
-            self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device)
+            self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
@@ -243,7 +243,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'gail')
+    tr = Trainer('sine', 'modril')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))
