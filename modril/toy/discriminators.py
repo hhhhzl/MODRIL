@@ -87,11 +87,6 @@ class Discriminator(nn.Module):
     # ===================================
     def _mfd_q_sample(self, x0, t, eps):
         """forward diffusion"""
-        # B = x0.size(0)
-        # x0_flat = x0.view(B, -1)  # (B, x_dim)
-        # eps_flat = eps.view(B, -1)  # (B, x_dim)
-        # a_bar = self.alphas_bar[t].view(-1, 1)
-        # return (a_bar.sqrt() * x0_flat) + ((1 - a_bar).sqrt() * eps_flat)
         a_bar = self.alphas_bar[t].view(-1, 1)
         return (a_bar.sqrt() * x0) + ((1 - a_bar).sqrt() * eps)
 
@@ -156,8 +151,6 @@ class MI_Estimator:
         if a_A.dim() == 1:
             a_A = a_A.unsqueeze(1)
 
-        x_E = torch.cat([s_E, a_E], dim=1)  # (batch, 2)
-        x_A = torch.cat([s_A, a_A], dim=1)  # (batch, 2)
         T_E = self.T(s_E, a_E)
         T_A = self.T(s_A, a_A)
 
