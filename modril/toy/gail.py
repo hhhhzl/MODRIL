@@ -214,11 +214,12 @@ class GAIL_MBD:
             self,
             agent,
             env,
+            steps,
             env_name: str,
             device='cuda',
             mbd_kwargs: dict | None = None
     ):
-        self.mbd = MBDScore(env, env_name, device=device, **(mbd_kwargs or {}))
+        self.mbd = MBDScore(env, env_name, steps=steps, device=device, **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
 

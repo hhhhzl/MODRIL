@@ -42,6 +42,12 @@ class Environment:
     def _norm_to_raw(self, z):
         return denorm_state(z)
 
+    def get_true_y_b(self, x_norm):
+        x_raw_query = self._norm_to_raw(np.asarray(x_norm))
+        x_raw_table = self.x_raw.reshape(-1)
+        idx = np.abs(x_raw_table - x_raw_query[..., None]).argmin(axis=-1)
+        return self.data_raw[idx, 1]
+
     def get_true_y(self, x_norm):
         x_raw = self._norm_to_raw(np.asarray(x_norm))
         idx = np.abs(self.x_raw - x_raw[..., None]).argmin(axis=-1)
@@ -60,3 +66,24 @@ class Environment:
         next_state = self.reset()
         info = {"true_y": true_y, "error": error}
         return next_state, reward, done, info
+
+    def batch_step(self, states_norm, predicted_y):
+        """
+        states_norm : ndarray shape (B, )  or (B, state_dim)
+        predicted_y : ndarray shape (B, )  or (B, action_dim)
+        Returns
+        --------
+        next_states : ndarray shape (B, )
+        rewards     : ndarray shape (B, )
+        dones       : ndarray shape (B, )  (all True)
+        info        : dict(str -> ndarray)  (broadcast over batch)
+        """
+        states_norm = np.asarray(states_norm)
+        predicted_y = np.asarray(predicted_y)
+        true_y = self.get_true_y_b(states_norm)  # shape (B,)
+        error = predicted_y - true_y[..., None] if predicted_y.ndim > 1 else predicted_y - true_y
+        rewards = - np.mean(error ** 2, axis=-1)  # shape (B,)
+        dones = np.ones_like(rewards, dtype=bool)
+        next_states = np.random.choice(self.x_norm.reshape(-1), size=states_norm.shape[0])
+        info = {"true_y": true_y, "error": error}
+        return next_states, rewards, dones, info

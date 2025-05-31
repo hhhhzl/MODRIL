@@ -8,13 +8,14 @@ class MBDScore:
             self,
             env,
             env_name,
+            steps,
             seed=0,
             disable_recommended_params=False,
             device='cpu',
             temp_sample: float = 0.1,
             num_diffusion_steps: int = 1000,
             num_mc: int = 32,
-            use_reward_score=False
+            use_reward_score=True
     ):
         """
         Initialize the diffusion-based trajectory optimizer with PyTorch.
@@ -39,7 +40,7 @@ class MBDScore:
 
         # Default parameters
         self.Nsample = 200
-        self.Hsample = 40
+        self.Hsample = steps
         self.num_diffusion_steps = num_diffusion_steps
         self.num_mc = num_mc
         self.alphas = torch.linspace(1.0, 1e-3, num_diffusion_steps + 1, device=self.device)
@@ -54,7 +55,7 @@ class MBDScore:
             "temp_sample": {"toy": 0.1},
             "num_diffusion_steps": {"toy": 100},
             "Nsample": {"toy": 200},
-            "Hsample": {"toy": 1000}
+            "Hsample": {"toy": steps}
         }
 
         # Initialize environment parameters
@@ -118,20 +119,25 @@ class MBDScore:
         Yi = Ybar_i * torch.sqrt(self.alphas_bar[i])
 
         # Sample from q_i
-
-        eps_u = torch.randn((self.Nsample, self.Hsample, self.Nu), device=self.device, dtype=Ybar_i.dtype)
-        # Y0s = eps_u * self.sigmas[i] + Ybar_i.unsqueeze(0)
+        H = Ybar_i.shape[0]
+        eps_u = torch.randn((self.Nsample, H, self.Nu), device=self.device, dtype=Ybar_i.dtype)
         Y0s = eps_u * self.sigmas[i] + Ybar_i
         Y0s = torch.clamp(Y0s, -1.0, 1.0)
 
         # Evaluate sampled trajectories
-        rewss = []
-        for j in range(self.Nsample):
-            # Convert to numpy for environment compatibility
-            actions = Y0s[j].cpu().numpy() if self.device != 'cpu' else Y0s[j].numpy()
-            rews, q = self._rollout(self.state_init, actions)
-            rewss.append(rews)
+        # rewss = []
+        # for j in range(self.Nsample):
+        #     # Convert to numpy for environment compatibility
+        #     actions = Y0s[j].cpu().numpy() if self.device != 'cpu' else Y0s[j].numpy()
+        #     rews, q = self._rollout(self.state_init, actions)
+        #     rewss.append(rews)
 
+        actions = Y0s.numpy()
+        if isinstance(self.state_init, np.ndarray):
+            states0 = np.repeat(self.state_init[None, ...], self.Nsample, axis=0)
+        else:
+            states0 = np.array([self.state_init] * self.Nsample, dtype=np.float32)
+        rewss, _ = self._rollout_batch(states0, actions)
         rews = torch.tensor(np.mean(rewss, axis=-1), device=self.device)
         rew_std = rews.std()
         rew_std = torch.where(rew_std < 1e-4, torch.tensor(1.0, device=self.device), rew_std)
@@ -180,13 +186,15 @@ class MBDScore:
                 break
         return np.array(rews), states
 
-    def _rollout_b(self, states0, actions):
+    def _rollout_batch(self, states0, actions):
         """ Batched rollout."""
         B, T = actions.shape[:2]
         rews = np.zeros((B, T), dtype=np.float32)
-        states = [states0.copy()]  # list 长 T+1
+        if np.isscalar(states0):  # scalar → (1,)
+            states0 = np.array([states0], dtype=np.float32)
+        states = [states0.copy()]
         cur_states = states0.copy()
-        done_mask = np.zeros(B, dtype=bool)  # False = still alive
+        done_mask = np.zeros(B, dtype=bool)
         for t in range(T):
             a_t = actions[:, t]  # a_t: [B, Nu]
             if hasattr(self.env, "batch_step"):
@@ -224,20 +232,21 @@ class MBDScore:
         Ye = torch.as_tensor(Ye, dtype=torch.float32, device=self.device)
         Ya = torch.as_tensor(Ya, dtype=torch.float32, device=self.device)
 
-        if Ye.dim() == 1:
-            Ye = Ye.unsqueeze(1)
+        if Ye.dim() == 1: Ye = Ye.unsqueeze(1)
+        if Ya.dim() == 1: Ya = Ya.unsqueeze(1)
 
-        if Ya.dim() == 1:
-            Ya = Ya.unsqueeze(1)
+        # --------------- 向量化核心 ---------------- #
+        Y_cat = torch.cat([Ye, Ya], dim=0)  # [B_E+B_A, …]
 
         with torch.no_grad():
             if self.use_reward_score:
-                g_E = self._logp_change_reward(Ye)
-                g_A = self._logp_change_reward(Ya)
+                g_cat = self._logp_change_reward(Y_cat)
             else:
-                g_E = self._estimate_logp_change(Ye)
-                g_A = self._estimate_logp_change(Ya)
-        return (g_E - g_A).cpu().numpy()
+                g_cat = self._estimate_logp_change(Y_cat)
+
+        g_E, g_A = torch.split(g_cat, [Ye.size(0), Ya.size(0)], dim=0)
+        g_E_mean = g_E.mean()
+        return (g_E_mean - g_A).cpu().numpy()
 
     def _estimate_logp_change(self, y0):
         B, D = y0.shape
