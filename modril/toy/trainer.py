@@ -32,7 +32,7 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=1000,
+            n_episode=3000,
             steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
@@ -243,7 +243,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'modril')
+    tr = Trainer('sine', 'gail')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))
