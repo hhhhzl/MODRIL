@@ -12,7 +12,7 @@ class MBDScore:
             seed=0,
             disable_recommended_params=False,
             device='cpu',
-            temp_sample: float = 0.1,
+            temp_sample: float = 0.5,
             num_diffusion_steps: int = 1000,
             num_mc: int = 32,
             use_reward_score=True
@@ -49,12 +49,11 @@ class MBDScore:
         self.beta0 = 1e-4
         self.betaT = 0.02
 
-
         # Recommended parameters for specific environments
         self.recommended_params = {
-            "temp_sample": {"toy": 0.1},
-            "num_diffusion_steps": {"toy": 100},
-            "Nsample": {"toy": 200},
+            "temp_sample": {"toy": 0.01},
+            "num_diffusion_steps": {"toy": 50},
+            "Nsample": {"toy": 50},
             "Hsample": {"toy": steps}
         }
 
@@ -98,11 +97,11 @@ class MBDScore:
         y = Y0.clone()
         for i in range(self.num_diffusion_steps):
             eps = torch.randn_like(y)
-            alpha_i = self.alphas[i]  # α_i
-            y = torch.sqrt(alpha_i) * y + torch.sqrt(1.0 - alpha_i) * eps  # Y_i
-        alpha_bar_N = self.alphas_bar[self.num_diffusion_steps-1]  # \bar α_N
-        y_bar_N = y / torch.sqrt(alpha_bar_N)
-        return y_bar_N
+            y = torch.sqrt(self.alphas[i]) * y + torch.sqrt(1.0 - self.alphas[i]) * eps  # Y_i
+        # alpha_bar_N = self.alphas_bar[self.num_diffusion_steps - 1]  # \bar α_N
+        # y_bar_N = y / torch.sqrt(alpha_bar_N)
+        return y
+
 
     def _reverse_diffusion_step(self, i, Ybar_i):
         """
@@ -138,6 +137,7 @@ class MBDScore:
         else:
             states0 = np.array([self.state_init] * self.Nsample, dtype=np.float32)
         rewss, _ = self._rollout_batch(states0, actions)
+
         rews = torch.tensor(np.mean(rewss, axis=-1), device=self.device)
         rew_std = rews.std()
         rew_std = torch.where(rew_std < 1e-4, torch.tensor(1.0, device=self.device), rew_std)
@@ -152,7 +152,28 @@ class MBDScore:
         # Compute score function and update
         score = 1 / (1.0 - self.alphas_bar[i]) * (-Yi + torch.sqrt(self.alphas_bar[i]) * Ybar)
         Yim1 = 1 / torch.sqrt(self.alphas[i]) * (Yi + (1.0 - self.alphas_bar[i]) * score)
+        # Yim1 = torch.clamp(Yim1, -1.0, 1.0)
         Ybar_im1 = Yim1 / torch.sqrt(self.alphas_bar[i - 1])
+
+        if i % 50 == 0:
+            print(f"[Step {i}] rews: min {rews.min().item():.4f}, max {rews.max().item():.4f}, mean {rew_mean:.4f}, std {rews.std().item():.4f}")
+            print(f"[Step {i}] logp0 distribution: min {logp0.min().item():.4f}, max {logp0.max().item():.4f}")
+            print(f"[Step {i}] weight: min {weights.min().item():.4f}, max {weights.max().item():.4f}, sum {weights.sum().item():.4f}")
+            print(f"[Step {i}] Y0s range: min {Y0s.min().item():.4f}, max {Y0s.max().item():.4f}, mean {Y0s.mean().item():.4f}")
+            print(f"[Step {i}] Ybar range: min {Ybar.min().item():.4f}, max {Ybar.max().item():.4f}")
+            print(f"[Step {i}] score range: min {score.min().item():.4f}, max {score.max().item():.4f}")
+
+        # with torch.no_grad():
+        #     w = torch.nn.functional.softmax(logp0, dim=0)
+        #     ent = -(w * (w + 1e-8).log()).sum()  # entropy
+        #
+        #     print(f"[diff {i:03d}] "
+        #           f"rew μ={rews.mean():+.4e} σ={rew_std:.4e} "
+        #           f"logp0∈[{logp0.min():+.4e},{logp0.max():+.4e}] "
+        #           f"entropy={ent:.3f} "
+        #           f"weight μ={weights.mean():.4f} "
+        #           f"score μ={score.mean():.4f}"
+        #           )
 
         return score, Yim1, Ybar_im1, rews.mean().item()
 
@@ -232,20 +253,27 @@ class MBDScore:
         Ye = torch.as_tensor(Ye, dtype=torch.float32, device=self.device)
         Ya = torch.as_tensor(Ya, dtype=torch.float32, device=self.device)
 
-        if Ye.dim() == 1: Ye = Ye.unsqueeze(1)
-        if Ya.dim() == 1: Ya = Ya.unsqueeze(1)
-
-        # --------------- 向量化核心 ---------------- #
+        if Ye.dim() == 1:
+            Ye = Ye.unsqueeze(1)
+        if Ya.dim() == 1:
+            Ya = Ya.unsqueeze(1)
         Y_cat = torch.cat([Ye, Ya], dim=0)  # [B_E+B_A, …]
 
         with torch.no_grad():
             if self.use_reward_score:
                 g_cat = self._logp_change_reward(Y_cat)
+                # g_E = self._logp_change_reward(Ye)
+                # g_A = self._logp_change_reward(Ya)
             else:
                 g_cat = self._estimate_logp_change(Y_cat)
+                # g_E = self._logp_change_reward(Ye)
+                # g_A = self._logp_change_reward(Ya)
 
         g_E, g_A = torch.split(g_cat, [Ye.size(0), Ya.size(0)], dim=0)
         g_E_mean = g_E.mean()
+        print(f"[compute_reward] g_E mean {g_E.mean().item():.4f}")
+        print(f"[compute_reward] g_A mean {g_A.mean().item():.4f}")
+        print(f"[compute_reward] final mean reward for each agent = {(g_E_mean - g_A).cpu().numpy().mean().round(4)}")
         return (g_E_mean - g_A).cpu().numpy()
 
     def _estimate_logp_change(self, y0):
@@ -272,9 +300,14 @@ class MBDScore:
         """
         reward-weighted reverse steps estimation
         """
+        # Ybar = Y0.clone()
         Ybar = self._foward_diffusion(Y0)
         g = torch.zeros(Y0.shape[0], device=self.device)
         for i in reversed(range(0, self.num_diffusion_steps)):
-            score, Y_i_minus1, Ybar, _ = self._reverse_diffusion_step(i, Ybar)
-            g += (score * Y_i_minus1 - (Ybar * torch.sqrt(self.alphas_bar[i]))).sum(dim=-1)
+            score, Y_i_minus1, Ybar_im1, _ = self._reverse_diffusion_step(i, Ybar)
+            # g += (score * Y_i_minus1 - (Ybar * torch.sqrt(self.alphas_bar[i]))).sum(dim=-1)
+            Y_i = Ybar * torch.sqrt(self.alphas_bar[i])
+            delta_i = Y_i_minus1 - torch.sqrt(self.alphas[i]) * Y_i
+            g += (score * delta_i).sum(dim=-1)
+            Ybar = Ybar_im1
         return g
