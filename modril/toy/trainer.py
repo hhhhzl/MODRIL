@@ -32,8 +32,8 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=3000,
-            steps=100,
+            n_episode=1000,
+            steps=200,
             hidden_dim=128,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -51,6 +51,7 @@ class Trainer:
         if function not in self.TASK_REGISTRY:
             raise ValueError(f"Unknown function {function}")
         self.task = self.TASK_REGISTRY[function]()
+        self.task_name = function
         # define expert and env
         self.expert_s = torch.tensor(self.task.expert_s, dtype=torch.float32, device=self.device)
         if self.task.action_dim > 0:
@@ -186,13 +187,96 @@ class Trainer:
         self.state_list = state_list
         self.action_list = action_list
 
+    # def plot(self):
+    #     plt.scatter(self.expert_s, self.expert_a, label='Ground Truth')
+    #     plt.scatter(self.state_list, self.action_list, label='Predicted')
+    #     plt.legend()
+    #     plt.xlabel('x')
+    #     plt.ylabel('y')
+    #     plt.savefig('result_sine.png')
+    #     plt.show()
+
     def plot(self):
-        plt.scatter(self.expert_s, self.expert_a, label='Ground Truth')
-        plt.scatter(self.state_list, self.action_list, label='Predicted')
-        plt.legend()
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.savefig('result_sine.png')
+        s_gt = np.array(self.expert_s)  # ground‐truth states
+        a_gt = np.array(self.expert_a)  # ground‐truth actions
+        s_pred = np.array(self.state_list)  # pred states
+        a_pred = np.array(self.action_list)  # pred actions
+
+        if s_gt.ndim == 1:
+            s_gt = s_gt.reshape(-1, 1)
+        if a_gt.ndim == 1:
+            a_gt = a_gt.reshape(-1, 1)
+        if s_pred.ndim == 1:
+            s_pred = s_pred.reshape(-1, 1)
+        if a_pred.ndim == 1:
+            a_pred = a_pred.reshape(-1, 1)
+
+        dim_s = s_gt.shape[1]
+        dim_a = a_gt.shape[1]
+
+        plt.figure(figsize=(6, 6))
+
+        if dim_s == 1:
+            plt.scatter(s_gt[:, 0], a_gt[:, 0], label='Ground Truth', alpha=0.5)
+            plt.scatter(s_pred[:, 0], a_pred[:, 0], label='Predicted', alpha=0.5)
+            plt.xlabel('state')
+            plt.ylabel('action')
+            plt.title(f'1D {self.task_name} Task: state vs action')
+
+
+        elif dim_s == 2:
+            # 2a) action_dim=2：quiver
+            if dim_a == 2:
+                # ground truth
+                plt.quiver(
+                    s_gt[:, 0], s_gt[:, 1],
+                    a_gt[:, 0], a_gt[:, 1],
+                    angles='xy', scale_units='xy', scale=1,
+                    color='C0', alpha=0.6, label='GT arrow'
+                )
+                # predicted
+                plt.quiver(
+                    s_pred[:, 0], s_pred[:, 1],
+                    a_pred[:, 0], a_pred[:, 1],
+                    angles='xy', scale_units='xy', scale=1,
+                    color='C1', alpha=0.6, label='Pred arrow'
+                )
+                plt.xlabel('state x')
+                plt.ylabel('state y')
+                plt.title(f'2D {self.task_name} Task: quiver plot (action as vector)')
+
+            # 2b) action_dim=1：scatter
+            elif dim_a == 1:
+                sc1 = plt.scatter(
+                    s_gt[:, 0], s_gt[:, 1],
+                    c=a_gt[:, 0], cmap='viridis',
+                    label='GT (colored by action)', s=30, alpha=0.7
+                )
+                cbar1 = plt.colorbar(sc1)
+                cbar1.set_label('action (GT)')
+
+                # predicted
+                sc2 = plt.scatter(
+                    s_pred[:, 0], s_pred[:, 1],
+                    c=a_pred[:, 0], cmap='plasma',
+                    marker='x', label='Pred (colored)', s=30, alpha=0.7
+                )
+                cbar2 = plt.colorbar(sc2)
+                cbar2.set_label('action (Pred)')
+
+                plt.xlabel('state x')
+                plt.ylabel('state y')
+                plt.title(f'2D {self.task_name} Task: scatter plot (action as scalar)')
+
+            else:
+                raise ValueError(f"Unsupported action dimension: {dim_a}")
+
+        else:
+            raise ValueError(f"Unsupported state dimension: {dim_s}")
+
+        plt.legend(loc='best')
+        plt.tight_layout()
+        plt.savefig('result.png', dpi=150)
         plt.show()
 
     # def plot(self, kind='reward_heatmap', **kwargs):
@@ -243,7 +327,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'gail')
+    tr = Trainer('gaussian_hill', 'drail')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))

@@ -7,9 +7,11 @@ class Environment2D:
     for 2D surface toy tasks
     """
 
-    def __init__(self, s_norm, a_norm):
+    def __init__(self, s_norm, a_norm, state_dim, action_dim):
         self.s_norm = s_norm  # np.ndarray shape (N,2)
         self.a_norm = a_norm  # np.ndarray shape (N,1)
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def reset(self):
         idx = np.random.randint(len(self.s_norm))
@@ -19,8 +21,11 @@ class Environment2D:
         dists = np.linalg.norm(self.s_norm - state_norm, axis=1)
         idx = dists.argmin()
         true_a_norm = self.a_norm[idx]
+        reward = true_a_norm
         next_state = self.reset()
-        return next_state, true_a_norm
+        done = False
+        info = {}
+        return next_state, reward, done, info
 
 
 class Environment:

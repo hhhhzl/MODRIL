@@ -33,10 +33,14 @@ class GAIL:
             agent_a,
             next_s
     ):
-        expert_states = torch.tensor(expert_s, dtype=torch.float).view(-1, 1).to(self.device)
-        expert_actions = torch.tensor(expert_a, dtype=torch.float).view(-1, 1).to(self.device)
-        agent_states = torch.tensor(agent_s, dtype=torch.float).view(-1, 1).to(self.device)
-        agent_actions = torch.tensor(agent_a, dtype=torch.float).view(-1, 1).to(self.device)
+        expert_states = torch.tensor(expert_s, dtype=torch.float).to(self.device)
+        expert_actions = torch.tensor(expert_a, dtype=torch.float).to(self.device)
+        agent_states = torch.tensor(agent_s, dtype=torch.float).to(self.device)
+        agent_actions = torch.tensor(agent_a, dtype=torch.float).to(self.device)
+        # expert_states = torch.tensor(expert_s, dtype=torch.float).view(-1, 1).to(self.device)
+        # expert_actions = torch.tensor(expert_a, dtype=torch.float).view(-1, 1).to(self.device)
+        # agent_states = torch.tensor(agent_s, dtype=torch.float).view(-1, 1).to(self.device)
+        # agent_actions = torch.tensor(agent_a, dtype=torch.float).view(-1, 1).to(self.device)
 
         expert_prob = self.discriminator(expert_states, expert_actions)
         agent_prob = self.discriminator(agent_states, agent_actions)
@@ -77,18 +81,29 @@ class DRAIL:
         self.epochs = epochs
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32,
-                            device=self.device)
-        xs_A = torch.tensor(np.stack([agent_s, agent_a], axis=1), dtype=torch.float32, device=self.device)
-        # now (batch, 2)
-        xs_E = xs_E.view(xs_E.size(0), -1)
-        xs_A = xs_A.view(xs_A.size(0), -1)
+        expert_s_arr, expert_a_arr = np.asarray(expert_s), np.asarray(expert_a)
+        if expert_s_arr.ndim == 1:
+            expert_s_arr = expert_s_arr.reshape(-1, 1)
+        if expert_a_arr.ndim == 1:
+            expert_a_arr = expert_a_arr.reshape(-1, 1)
+
+        agent_s_arr, agent_a_arr  = np.asarray(agent_s), np.asarray(agent_a)
+        if agent_s_arr.ndim == 1:
+            agent_s_arr = agent_s_arr.reshape(-1, 1)
+        if agent_a_arr.ndim == 1:
+            agent_a_arr = agent_a_arr.reshape(-1, 1)
+
+        xs_E_arr = np.concatenate([expert_s_arr, expert_a_arr], axis=1)
+        xs_A_arr = np.concatenate([agent_s_arr, agent_a_arr], axis=1)
+        xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
+        xs_A = torch.tensor(xs_A_arr, dtype=torch.float32, device=self.device)
+
 
         for _ in range(self.epochs):
             D_E = self.discriminator(xs_E)
             D_A = self.discriminator(xs_A)
-            discriminator_loss = self.bce(D_E, torch.ones_like(D_E)) + self.bce(D_A, torch.zeros_like(D_A))
-            # print("D_expert", D_E.mean(), "D_agent", D_A.mean())
+            discriminator_loss = self.bce(D_E, torch.ones_like(D_E)) + \
+                                 self.bce(D_A, torch.zeros_like(D_A))
             self.opt.zero_grad()
             discriminator_loss.backward()
             self.opt.step()
@@ -100,11 +115,39 @@ class DRAIL:
         transition_dict = {
             'states': agent_s,
             'actions': agent_a,
-            'rewards': rewards,
+            'rewards': rewards.tolist() if isinstance(rewards, np.ndarray) else rewards,
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
         self.agent.update(transition_dict)
+
+        # xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32, device=self.device)
+        # xs_A = torch.tensor(np.stack([agent_s, agent_a], axis=1), dtype=torch.float32, device=self.device)
+        # # now (batch, 2)
+        # xs_E = xs_E.view(xs_E.size(0), -1)
+        # xs_A = xs_A.view(xs_A.size(0), -1)
+        #
+        # for _ in range(self.epochs):
+        #     D_E = self.discriminator(xs_E)
+        #     D_A = self.discriminator(xs_A)
+        #     discriminator_loss = self.bce(D_E, torch.ones_like(D_E)) + self.bce(D_A, torch.zeros_like(D_A))
+        #     # print("D_expert", D_E.mean(), "D_agent", D_A.mean())
+        #     self.opt.zero_grad()
+        #     discriminator_loss.backward()
+        #     self.opt.step()
+        #
+        # with torch.no_grad():
+        #     rewards = self.discriminator.get_reward(xs_A).cpu().numpy()
+        #     rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        #
+        # transition_dict = {
+        #     'states': agent_s,
+        #     'actions': agent_a,
+        #     'rewards': rewards,
+        #     'next_states': next_s,
+        #     'dones': [False] * len(agent_s)
+        # }
+        # self.agent.update(transition_dict)
 
 
 class GAIL_MI:
@@ -224,7 +267,9 @@ class GAIL_MBD:
         self.device = device
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        rewards = self.mbd.compute_reward(expert_a, agent_a)
+        xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32).view(-1, 2).to(self.device)
+        xs_A = torch.tensor(np.stack([agent_s, agent_a], 1), dtype=torch.float32).view(-1, 2).to(self.device)
+        rewards = self.mbd.compute_reward(xs_E, xs_A)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
 
         self.agent.update(dict(
