@@ -162,19 +162,6 @@ class MBDScore:
             print(f"[Step {i}] Y0s range: min {Y0s.min().item():.4f}, max {Y0s.max().item():.4f}, mean {Y0s.mean().item():.4f}")
             print(f"[Step {i}] Ybar range: min {Ybar.min().item():.4f}, max {Ybar.max().item():.4f}")
             print(f"[Step {i}] score range: min {score.min().item():.4f}, max {score.max().item():.4f}")
-
-        # with torch.no_grad():
-        #     w = torch.nn.functional.softmax(logp0, dim=0)
-        #     ent = -(w * (w + 1e-8).log()).sum()  # entropy
-        #
-        #     print(f"[diff {i:03d}] "
-        #           f"rew μ={rews.mean():+.4e} σ={rew_std:.4e} "
-        #           f"logp0∈[{logp0.min():+.4e},{logp0.max():+.4e}] "
-        #           f"entropy={ent:.3f} "
-        #           f"weight μ={weights.mean():.4f} "
-        #           f"score μ={score.mean():.4f}"
-        #           )
-
         return score, Yim1, Ybar_im1, rews.mean().item()
 
     def _reverse_diffusion_step_prior(self, i, y_i):

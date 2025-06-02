@@ -179,7 +179,7 @@ class Trainer:
 
     def runner(self):
         # pretrain for FFJORD
-        if self.pretrain and (self.method == "ffjord" or self.method == "fm" or self.method == 'ebgail'):
+        if (self.pretrain and (self.method == "ffjord" or self.method == "fm")) or self.method == 'ebgail':
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
             if self.method == "ffjord":
                 density_E = self._pretrain_density(
@@ -193,7 +193,7 @@ class Trainer:
                     self.method,
                     FlowMatching(self.state_dim, self.action_dim, self.device).to(self.device),
                     xs_E_full,
-                    100000
+                    30000
                 )
             elif self.method == 'ebgail':
                 density_E = self._pretrain_density(
@@ -459,7 +459,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'ebgail')
+    tr = Trainer('sine', 'gail')
     tr.runner()
     tr.plot()
     tr.plot_metrics()

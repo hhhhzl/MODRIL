@@ -286,8 +286,24 @@ class GAIL_MBD:
         self.device = device
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32).view(-1, 2).to(self.device)
-        xs_A = torch.tensor(np.stack([agent_s, agent_a], 1), dtype=torch.float32).view(-1, 2).to(self.device)
+        expert_s_arr = np.asarray(expert_s, dtype=np.float32)
+        expert_a_arr = np.asarray(expert_a, dtype=np.float32)
+        if expert_s_arr.ndim == 1:
+            expert_s_arr = expert_s_arr.reshape(-1, 1)
+        if expert_a_arr.ndim == 1:
+            expert_a_arr = expert_a_arr.reshape(-1, 1)
+        xs_E_arr = np.concatenate([expert_s_arr, expert_a_arr], axis=1)  # shape = (N, 2)
+        xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
+
+        agent_s_arr = np.asarray(agent_s, dtype=np.float32)
+        agent_a_arr = np.asarray(agent_a, dtype=np.float32)
+        if agent_s_arr.ndim == 1:
+            agent_s_arr = agent_s_arr.reshape(-1, 1)
+        if agent_a_arr.ndim == 1:
+            agent_a_arr = agent_a_arr.reshape(-1, 1)
+        xs_A_arr = np.concatenate([agent_s_arr, agent_a_arr], axis=1)  # shape = (M, 2)
+        xs_A = torch.tensor(xs_A_arr, dtype=torch.float32, device=self.device)
+
         rewards = self.mbd.compute_reward(xs_E, xs_A)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
 

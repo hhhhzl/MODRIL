@@ -2,32 +2,6 @@ import numpy as np
 from modril.toy.utils import norm_state, denorm_state
 
 
-# class Environment2D:
-#     """
-#     for 2D surface toy tasks
-#     """
-#
-#     def __init__(self, s_norm, a_norm, state_dim, action_dim):
-#         self.s_norm = s_norm  # np.ndarray shape (N,2)
-#         self.a_norm = a_norm  # np.ndarray shape (N,1)
-#         self.state_dim = state_dim
-#         self.action_dim = action_dim
-#
-#     def reset(self):
-#         idx = np.random.randint(len(self.s_norm))
-#         return self.s_norm[idx]
-#
-#     def step(self, state_norm, pred_a_norm):
-#         dists = np.linalg.norm(self.s_norm - state_norm, axis=1)
-#         idx = dists.argmin()
-#         true_a_norm = self.a_norm[idx]
-#         reward = true_a_norm
-#         next_state = self.reset()
-#         done = False
-#         info = {}
-#         return next_state, reward, done, info
-
-
 class Environment2D:
     """
     2D surface toy environment.
@@ -134,3 +108,87 @@ class Environment:
         next_states = np.random.choice(self.x_norm.reshape(-1), size=states_norm.shape[0])
         info = {"true_y": true_y, "error": error}
         return next_states, rewards, dones, info
+
+# class Environment1:
+#     """
+#     把原来的“静态映射” Environment 改成“多步动态”环境
+#     - data_raw, x_raw: 直接复用原来代码的输入，用于查询“真实 y”。
+#     - 我们额外引入一个“动力学更新”：s_{t+1} = s_t + a_t * dt
+#     - horizon: 轨迹长度
+#     - reset() → 返回初始 s ∈ (-π,π)，并把 cur_step 置 0
+#     - step() / batch_step() → 返回下一个状态、奖励、done=False（直到到达 horizon 步才返回 done=True）
+#     """
+#     def __init__(self,
+#                  data_raw: np.ndarray,
+#                  x_raw: np.ndarray,
+#                  state_dim: int,
+#                  action_dim: int,
+#                  dt: float = 0.05,
+#                  horizon: int = 20):
+#         """
+#         data_raw : ndarray, shape = (N,2), data_raw[:,0]=x_raw, data_raw[:,1]=y
+#         x_raw    : ndarray,  原始 x 数值域 (e.g. [0,10])
+#         state_dim, action_dim: 目前统一是 1
+#         dt       : 每一步的时间步长
+#         horizon  : 轨迹的最大步数
+#         """
+#         assert state_dim == 1 and action_dim == 1
+#         self.x_raw = x_raw
+#         self.x_norm = norm_state(x_raw)  # (-π, π) 之间
+#         self.data_raw = data_raw
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#
+#         self.dt = dt
+#         self.horizon = horizon
+#         self.cur_step = None
+#         self.state = None
+#
+#     def _raw_to_norm(self, x):
+#         return norm_state(x)
+#
+#     def _norm_to_raw(self, z):
+#         return denorm_state(z)
+#
+#     def get_true_y_b(self, x_norm):
+#         x_raw_query = self._norm_to_raw(np.asarray(x_norm))
+#         x_raw_table = self.x_raw.reshape(-1)
+#         idx = np.abs(x_raw_table - x_raw_query[..., None]).argmin(axis=-1)
+#         return self.data_raw[idx, 1]
+#
+#     def get_true_y(self, x_norm):
+#         x_raw = self._norm_to_raw(np.asarray(x_norm))
+#         idx = np.abs(self.x_raw - x_raw[..., None]).argmin(axis=-1)
+#         return self.data_raw[idx, 1]
+#
+#     def reset(self, batch_size: int = 1):
+#         self.cur_step = 0
+#         states = np.random.choice(self.x_norm.reshape(-1), size=batch_size)
+#         self.state = states.copy().astype(np.float32)
+#         return self.state.copy()
+#
+#     def step(self, state_norm: np.ndarray, predicted_y: np.ndarray):
+#         s_t = np.asarray(state_norm, dtype=np.float32).reshape(-1)   # (1,)
+#         a_t = np.asarray(predicted_y, dtype=np.float32).reshape(-1) # (1,)
+#         true_y = self.get_true_y(s_t[0])
+#         r_t = - (a_t[0] - true_y)**2
+#         next_s = s_t + a_t * self.dt
+#         self.cur_step += 1
+#         done = False
+#         if self.cur_step >= self.horizon:
+#             done = True
+#         self.state = next_s.copy()
+#         info = {"true_y": true_y}
+#         return next_s.astype(np.float32)[0], r_t, done, info
+#
+#     def batch_step(self, states_norm: np.ndarray, predicted_y: np.ndarray):
+#         states = np.asarray(states_norm, dtype=np.float32).reshape(-1)  # shape = (B,)
+#         actions = np.asarray(predicted_y, dtype=np.float32).reshape(-1) # shape = (B,)
+#         B = states.shape[0]
+#         true_y = self.get_true_y_b(states)
+#         errors = actions - true_y
+#         rewards = - (errors ** 2)
+#         next_states = states + actions * self.dt
+#         dones = np.zeros(B, dtype=bool)
+#         info = {"true_y": true_y.copy()}
+#         return next_states.astype(np.float32), rewards.astype(np.float32), dones, info
