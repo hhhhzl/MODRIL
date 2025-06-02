@@ -53,7 +53,7 @@ class Trainer:
             eps=0.2,
             gamma=0.98,
             lr_d=1e-3,
-            pretrain=False,
+            pretrain=True,
             **kwargs
     ):
         self.state_list = None
@@ -287,7 +287,7 @@ class Trainer:
             plt.scatter(s_pred[:, 0], a_pred[:, 0], label='Predicted', alpha=0.5)
             plt.xlabel('state')
             plt.ylabel('action')
-            plt.title(f'1D {self.task_name} Task: state vs action ({{self.method}})')
+            plt.title(f'1D {self.task_name} Task: state vs action ({self.method})')
 
         elif dim_s == 2:
             # 2a) action_dim=2：quiver
@@ -426,21 +426,21 @@ class Trainer:
             plt.plot(
                 ep_ds,
                 kl_ds,
-                label='KL(P_E ‖ P_A)',
+                label='Discriminator Surrogate',
                 color='C3'
             )
             plt.xlabel('Episode')
-            plt.ylabel('KL Divergence')
-            plt.title(f'KL Divergence: ({self.task_name}) - ({self.method})')
+            plt.ylabel('Surrogate Reward')
+            plt.title(f'Discriminator Surrogate: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig('kl_curve.png', dpi=150)
+            plt.savefig('surrogate_curve.png', dpi=150)
             plt.show()
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'mine')
+    tr = Trainer('sine', 'gail')
     tr.runner()
     tr.plot()
     tr.plot_metrics()
