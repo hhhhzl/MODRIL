@@ -37,30 +37,21 @@ class GAIL:
         expert_actions = torch.tensor(expert_a, dtype=torch.float).to(self.device)
         agent_states = torch.tensor(agent_s, dtype=torch.float).to(self.device)
         agent_actions = torch.tensor(agent_a, dtype=torch.float).to(self.device)
-        # expert_states = torch.tensor(expert_s, dtype=torch.float).view(-1, 1).to(self.device)
-        # expert_actions = torch.tensor(expert_a, dtype=torch.float).view(-1, 1).to(self.device)
-        # agent_states = torch.tensor(agent_s, dtype=torch.float).view(-1, 1).to(self.device)
-        # agent_actions = torch.tensor(agent_a, dtype=torch.float).view(-1, 1).to(self.device)
 
         expert_prob = self.discriminator(expert_states, expert_actions)
         agent_prob = self.discriminator(agent_states, agent_actions)
-        # print("D_expert", expert_prob.mean(), "D_agent", agent_prob.mean())
         discriminator_loss = self.bce(expert_prob, torch.ones_like(expert_prob)) + self.bce(agent_prob,
                                                                                             torch.zeros_like(
                                                                                                 agent_prob))
-        # print("d_loss", discriminator_loss)
-        # discriminator_loss = F.binary_cross_entropy(agent_prob, torch.ones_like(agent_prob)) + F.binary_cross_entropy(expert_prob, torch.zeros_like(expert_prob))
         self.discriminator_optimizer.zero_grad()
         discriminator_loss.backward()
         self.discriminator_optimizer.step()
-        # wandb.log({'discriminator_loss':discriminator_loss})
 
         with torch.no_grad():
             rewards = -torch.log(1 - agent_prob + 1e-8).cpu().numpy()
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
             rewards = rewards.squeeze()
-        # wandb.log({'agent_prob':agent_prob[0]})
-        # wandb.log({'reward for policy training':rewards[0]})
+
         transition_dict = {
             'states': agent_s,
             'actions': agent_a,
