@@ -4,7 +4,7 @@ from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
 from modril.toy.utils import timestep_embed
 import torch.nn.functional as F
 from torchdiffeq import odeint
-
+import numpy as np
 
 class Discriminator(nn.Module):
     def __init__(
@@ -132,11 +132,14 @@ class MI_Estimator:
         self.ma_rate = ma_rate
 
     def estimate_and_update(self, s_E, a_E, s_A, a_A):
-        """"""
-        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device)
-        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device)
-        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device)
-        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device)
+        s_E_np = np.asarray(s_E, dtype=np.float32)
+        a_E_np = np.asarray(a_E, dtype=np.float32)
+        s_A_np = np.asarray(s_A, dtype=np.float32)
+        a_A_np = np.asarray(a_A, dtype=np.float32)
+        s_E = torch.from_numpy(s_E_np).float().to(self.device)
+        a_E = torch.from_numpy(a_E_np).float().to(self.device)
+        s_A = torch.from_numpy(s_A_np).float().to(self.device)
+        a_A = torch.from_numpy(a_A_np).float().to(self.device)
 
         # if they came in as 1-D, make them (batch,1)
         if s_E.dim() == 1:

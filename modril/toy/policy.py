@@ -34,16 +34,25 @@ class PPO:
             return action
 
     def update(self, transition_dict):
-        states_np = np.array(transition_dict['states'], dtype=np.float32)  # (batch, state_dim)
+        states_np = np.array(transition_dict['states'], dtype=np.float32)
         next_states_np = np.array(transition_dict['next_states'], dtype=np.float32)
-        states = torch.from_numpy(states_np).to(self.device)  # (batch, state_dim)
-        next_states = torch.from_numpy(next_states_np).to(self.device)  # (batch, state_dim)
-        actions_np = np.array(transition_dict['actions'])  # (batch,)
-        rewards_np = np.array(transition_dict['rewards'], dtype=np.float32)  # (batch,)
-        dones_np = np.array(transition_dict['dones'], dtype=np.float32)  # (batch,)
-        actions = torch.from_numpy(actions_np).view(-1, 1).to(self.device)  # (batch, 1)
-        rewards = torch.from_numpy(rewards_np).view(-1, 1).to(self.device)  # (batch, 1)
-        dones = torch.from_numpy(dones_np).view(-1, 1).to(self.device)  # (batch, 1)
+        actions_np = np.array(transition_dict['actions'])
+        rewards_np = np.array(transition_dict['rewards'], dtype=np.float32)
+        dones_np = np.array(transition_dict['dones'], dtype=np.float32)
+
+        if states_np.ndim == 1:
+            states = torch.from_numpy(states_np).unsqueeze(-1).to(self.device)  # (batch,1)
+        else:
+            states = torch.from_numpy(states_np).to(self.device)  # (batch, state_dim)
+
+        if next_states_np.ndim == 1:
+            next_states = torch.from_numpy(next_states_np).unsqueeze(-1).to(self.device)
+        else:
+            next_states = torch.from_numpy(next_states_np).to(self.device)
+
+        actions = torch.from_numpy(actions_np).view(-1, 1).to(self.device)  # 一般 action_dim=1
+        rewards = torch.from_numpy(rewards_np).view(-1, 1).to(self.device)
+        dones = torch.from_numpy(dones_np).view(-1, 1).to(self.device)
 
         with torch.no_grad():
             next_values = self.critic(next_states)  # (batch, 1)

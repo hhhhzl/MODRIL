@@ -33,10 +33,15 @@ class GAIL:
             agent_a,
             next_s
     ):
-        expert_states = torch.tensor(expert_s, dtype=torch.float).to(self.device)
-        expert_actions = torch.tensor(expert_a, dtype=torch.float).to(self.device)
-        agent_states = torch.tensor(agent_s, dtype=torch.float).to(self.device)
-        agent_actions = torch.tensor(agent_a, dtype=torch.float).to(self.device)
+        expert_s_arr = np.array(expert_s, dtype=np.float32)
+        expert_a_arr = np.array(expert_a, dtype=np.float32)
+        expert_states = torch.from_numpy(expert_s_arr).to(self.device)  # (batch, state_dim)
+        expert_actions = torch.from_numpy(expert_a_arr).to(self.device)
+
+        agent_s_arr = np.array(agent_s, dtype=np.float32)
+        agent_a_arr = np.array(agent_a, dtype=np.float32)
+        agent_states = torch.from_numpy(agent_s_arr).to(self.device)  # (batch, state_dim)
+        agent_actions = torch.from_numpy(agent_a_arr).to(self.device)
 
         expert_prob = self.discriminator(expert_states, expert_actions)
         agent_prob = self.discriminator(agent_states, agent_actions)
@@ -186,8 +191,10 @@ class GAIL_Flow:
         self.optA.step()
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        s_A = torch.tensor(agent_s, dtype=torch.float32, device=self.device)
-        a_A = torch.tensor(agent_a, dtype=torch.float32, device=self.device)
+        agent_s_np = np.asarray(agent_s, dtype=np.float32)
+        agent_a_np = np.asarray(agent_a, dtype=np.float32)
+        s_A = torch.from_numpy(agent_s_np).to(self.device)  # shape: [B] or [B, state_dim]
+        a_A = torch.from_numpy(agent_a_np).to(self.device)
 
         if s_A.dim() == 1:
             s_A = s_A.unsqueeze(-1)

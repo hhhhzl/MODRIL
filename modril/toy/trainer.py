@@ -440,7 +440,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('multi_sine', 'fm')
+    tr = Trainer('sine', 'fm')
     tr.runner()
     tr.plot()
     tr.plot_metrics()
