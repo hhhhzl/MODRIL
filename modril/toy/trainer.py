@@ -10,6 +10,15 @@ from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD
 from modril.toy.discriminators import FFJORDDensity, FlowMatching
 from modril.toy.toy_tasks import *
+import random
+
+seed = 1234
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
+import argparse
 
 
 # --- Trainer refactored --- #
@@ -44,6 +53,7 @@ class Trainer:
             eps=0.2,
             gamma=0.98,
             lr_d=1e-3,
+            pretrain=False,
             **kwargs
     ):
         self.state_list = None
@@ -58,12 +68,15 @@ class Trainer:
         self.expert_s = torch.tensor(self.task.expert_s, dtype=torch.float32, device=self.device)
         if self.task.action_dim > 0:
             self.expert_a = torch.tensor(self.task.expert_a, dtype=torch.float32, device=self.device)
+            a_np = np.array(self.task.expert_a) + np.random.randn(*self.task.expert_a.shape) * 0.1
+            self.expert_a = torch.tensor(a_np, dtype=torch.float32, device=self.device)
         else:
             self.expert_a = None
         self.env = getattr(self.task, 'env', None)
         # dims
         self.state_dim = self.task.state_dim
         self.action_dim = self.task.action_dim
+        self.pretrain = pretrain
         # config
         self.n_episode = n_episode
         self.steps = steps
@@ -85,6 +98,16 @@ class Trainer:
         # init GAIL (or variant)
         self._init_trainer(method)
 
+        # for plot metrics
+        self.reward_history = []
+        self.reward_history = []
+        self.reward_min_history = []
+        self.reward_max_history = []
+
+        self.logpE_history = []
+        self.logpA_history = []
+        self.kl_history = []
+
     def _init_trainer(self, method, **kwargs):
         if method == 'gail':
             self.trainer = GAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, self.lr,
@@ -102,7 +125,7 @@ class Trainer:
         else:
             raise ValueError(f"Unknown method {method}")
 
-    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-5, clip_grad=1.0,
+    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-4, clip_grad=1.0,
                           log_interval=500):
         """
         method: "ffjord" or "fm"
@@ -152,7 +175,7 @@ class Trainer:
 
     def runner(self):
         # pretrain for FFJORD
-        if self.method == "ffjord" or self.method == "fm":
+        if self.pretrain and (self.method == "ffjord" or self.method == "fm"):
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
             density_E = self._pretrain_density(
                 self.method,
@@ -160,7 +183,7 @@ class Trainer:
                     self.device) if self.method == "ffjord" else FlowMatching(self.state_dim, self.action_dim,
                                                                               self.device).to(self.device),
                 xs_E_full,
-                int(self.n_episode * self.steps / 1000) if self.method == "ffjord" else self.n_episode * self.steps
+                int(self.n_episode * self.steps / 100) if self.method == "ffjord" else 100000
             )
             self.trainer.E = density_E
 
@@ -172,14 +195,16 @@ class Trainer:
             for ep in range(self.n_episode):
                 state = self.env.reset()
                 state_list, action_list, next_state_list = [], [], []
+                env_rewards = []
                 for step in range(self.steps):
                     action = self.agent.take_action(state)
                     next_state, reward, done, info = self.env.step(state, action)
-                    # next_state, true_y = self.env.step(state, action)
                     state_list.append(state)
                     action_list.append(action)
                     next_state_list.append(next_state)
+                    env_rewards.append(reward)
                     state = next_state
+
                 # use numpy expert arrays for training
                 self.trainer.learn(
                     self.task.expert_s,
@@ -188,6 +213,51 @@ class Trainer:
                     action_list,
                     next_state_list
                 )
+
+                # for metrics plot
+                rewards_np = np.array(env_rewards, dtype=float)
+                avg_env_reward = float(rewards_np.mean())
+                min_env_reward = float(np.percentile(rewards_np, 25))
+                max_env_reward = float(np.percentile(rewards_np, 75))
+
+                self.reward_history.append(avg_env_reward)
+                self.reward_min_history.append(min_env_reward)
+                self.reward_max_history.append(max_env_reward)
+
+                if self.method in ("ffjord", "fm"):
+                    xs_expert = torch.cat([self.expert_s, self.expert_a], dim=1).to(self.device)  # [N, D]
+                    with torch.no_grad():
+                        logp_E_expert = self.trainer.E.log_prob(xs_expert).cpu().numpy()  # shape (N,)
+                        logp_A_expert = self.trainer.A.log_prob(xs_expert).cpu().numpy()  # shape (N,)
+
+                    mean_logpE = float(np.mean(logp_E_expert))
+                    mean_logpA = float(np.mean(logp_A_expert))
+                    self.logpE_history.append(mean_logpE)
+                    self.logpA_history.append(mean_logpA)
+
+                    kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
+                    self.kl_history.append(kl_ep)
+                elif self.method in ("gail", "drail"):
+                    expert_s_t = self.expert_s
+                    expert_a_t = self.expert_a
+
+                    eps = 1e-8
+                    if self.method == "gail":
+                        D_expert = self.trainer.discriminator(expert_s_t, expert_a_t).clamp(eps, 1 - eps)
+                    else:  # "drail"
+                        xs_expert = torch.cat([expert_s_t, expert_a_t], dim=1)
+                        D_expert = self.trainer.discriminator(xs_expert).clamp(eps, 1 - eps)
+
+                    log_ratio = torch.log(D_expert) - torch.log(1 - D_expert)
+                    kl_ep = float(log_ratio.mean().detach().numpy())
+                    self.kl_history.append(kl_ep)
+                    self.logpE_history.append(None)
+                    self.logpA_history.append(None)
+                else:
+                    self.logpE_history.append(None)
+                    self.logpA_history.append(None)
+                    self.kl_history.append(None)
+
                 pbar.update(1)
         self.state_list = state_list
         self.action_list = action_list
@@ -274,56 +344,103 @@ class Trainer:
         plt.savefig('result.png', dpi=150)
         plt.show()
 
-    # def plot(self, kind='reward_heatmap', **kwargs):
-    #     if kind == 'reward_heatmap':
-    #         self._plot_reward_heatmap(**kwargs)
-    #     elif kind == 'density_ratio':
-    #         self._plot_density_ratio(**kwargs)
-    #     else:
-    #         raise ValueError(f"Unknown plot kind {kind}")
+    def plot_metrics(self):
+        total_eps = len(self.reward_history)
+        episodes_full = np.arange(1, total_eps + 1)
 
-    # def _plot_reward_heatmap(self, resolution=100, extent=None):
-    #     # supports 1D and 2D
-    #     if self.state_dim == 1:
-    #         xs = np.linspace(extent[0], extent[1], resolution)
-    #         with torch.no_grad():
-    #             s = torch.tensor(xs[:, None], device=self.device).float()
-    #             # reward = log pE - log ppi
-    #             r = self.trainer.E.log_prob(torch.cat([s, torch.zeros_like(s)], 1))  # dummy a=0
-    #             r = r.cpu().numpy()
-    #         plt.plot(xs, r)
-    #         plt.title('Reward Heatmap (1D)')
-    #         plt.xlabel('s')
-    #         plt.ylabel('r')
-    #     elif self.state_dim == 2:
-    #         xs = ys = np.linspace(extent[0], extent[1], resolution)
-    #         grid = np.stack(np.meshgrid(xs, ys), -1).reshape(-1, 2)
-    #         with torch.no_grad():
-    #             s = torch.tensor(grid, device=self.device).float()
-    #             r = self.trainer.E.log_prob(s).cpu().numpy().reshape(resolution, resolution)
-    #         plt.imshow(r, extent=(*extent, *extent), origin='lower')
-    #         plt.colorbar()
-    #         plt.title('Reward Heatmap (2D)')
-    #     else:
-    #         raise NotImplementedError
-    #     plt.show()
-    #
-    # def _plot_density_ratio(self, bins=50):
-    #     # compare expert vs policy reward distributions
-    #     with torch.no_grad():
-    #         re = self.trainer.E.log_prob(self.expert_sa).cpu().numpy()
-    #         sp = torch.randn_like(self.expert_sa)  # placeholder
-    #         rp = self.trainer.E.log_prob(sp).cpu().numpy()
-    #     plt.hist(re, bins=bins, alpha=0.5, label='expert')
-    #     plt.hist(rp, bins=bins, alpha=0.5, label='policy')
-    #     plt.legend()
-    #     plt.title('Density Ratio Dist')
-    #     plt.show()
+        max_points = 300
+        if total_eps <= max_points:
+            idx_ds = np.arange(total_eps)
+        else:
+            idx_ds = np.linspace(0, total_eps - 1, max_points, dtype=int)
+
+        ep_ds = episodes_full[idx_ds]
+
+        # —— 1. Env Reward + bound ——
+        reward_mean = np.array(self.reward_history)
+        reward_min = np.array(self.reward_min_history)
+        reward_max = np.array(self.reward_max_history)
+
+        reward_mean_ds = reward_mean[idx_ds]
+        reward_min_ds = reward_min[idx_ds]
+        reward_max_ds = reward_max[idx_ds]
+
+        plt.figure(figsize=(8, 4))
+        plt.fill_between(
+            ep_ds,
+            reward_min_ds,
+            reward_max_ds,
+            color='C0',
+            alpha=0.2,
+            label='Reward Bounds (IQR)'
+        )
+        plt.plot(
+            ep_ds,
+            reward_mean_ds,
+            color='C0',
+            label='Avg Reward'
+        )
+        plt.xlabel('Episode')
+        plt.ylabel('Reward')
+        plt.title(f'Reward: ({self.task_name}) - ({self.method})')
+        plt.legend(loc='best')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig('env_reward_with_bounds.png', dpi=150)
+        plt.show()
+
+        if any(v is not None for v in self.logpE_history):
+            logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
+            logpA_arr = np.array([v if v is not None else np.nan for v in self.logpA_history])
+
+            logpE_ds = logpE_arr[idx_ds]
+            logpA_ds = logpA_arr[idx_ds]
+
+            plt.figure(figsize=(8, 4))
+            plt.plot(
+                ep_ds,
+                logpE_ds,
+                label='mean log p_E (expert)',
+                color='C1'
+            )
+            plt.plot(
+                ep_ds,
+                logpA_ds,
+                label='mean log p_A (agent)',
+                color='C2'
+            )
+            plt.xlabel('Episode')
+            plt.ylabel('log p')
+            plt.title(f'log p_E vs log p_A: ({self.task_name}) - ({self.method})')
+            plt.legend(loc='best')
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig('logpE_logpA_curve.png', dpi=150)
+            plt.show()
+
+        if any(v is not None for v in self.kl_history):
+            kl_arr = np.array([v if v is not None else np.nan for v in self.kl_history])
+            kl_ds = kl_arr[idx_ds]
+
+            plt.figure(figsize=(8, 4))
+            plt.plot(
+                ep_ds,
+                kl_ds,
+                label='KL(P_E ‖ P_A)',
+                color='C3'
+            )
+            plt.xlabel('Episode')
+            plt.ylabel('KL Divergence')
+            plt.title(f'KL Divergence: ({self.task_name}) - ({self.method})')
+            plt.legend(loc='best')
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig('kl_curve.png', dpi=150)
+            plt.show()
 
 
 if __name__ == '__main__':
-    tr = Trainer('saddle', 'ffjord')
+    tr = Trainer('sine', 'mine')
     tr.runner()
     tr.plot()
-    # tr.plot(kind='reward_heatmap', extent=(-1, 1))
-    # tr.plot(kind='density_ratio')
+    tr.plot_metrics()

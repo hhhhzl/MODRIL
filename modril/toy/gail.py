@@ -58,6 +58,7 @@ class GAIL:
         with torch.no_grad():
             rewards = -torch.log(1 - agent_prob + 1e-8).cpu().numpy()
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+            rewards = rewards.squeeze()
         # wandb.log({'agent_prob':agent_prob[0]})
         # wandb.log({'reward for policy training':rewards[0]})
         transition_dict = {
@@ -87,7 +88,7 @@ class DRAIL:
         if expert_a_arr.ndim == 1:
             expert_a_arr = expert_a_arr.reshape(-1, 1)
 
-        agent_s_arr, agent_a_arr  = np.asarray(agent_s), np.asarray(agent_a)
+        agent_s_arr, agent_a_arr = np.asarray(agent_s), np.asarray(agent_a)
         if agent_s_arr.ndim == 1:
             agent_s_arr = agent_s_arr.reshape(-1, 1)
         if agent_a_arr.ndim == 1:
@@ -97,7 +98,6 @@ class DRAIL:
         xs_A_arr = np.concatenate([agent_s_arr, agent_a_arr], axis=1)
         xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
         xs_A = torch.tensor(xs_A_arr, dtype=torch.float32, device=self.device)
-
 
         for _ in range(self.epochs):
             D_E = self.discriminator(xs_E)
@@ -111,6 +111,7 @@ class DRAIL:
         with torch.no_grad():
             rewards = self.discriminator.get_reward(xs_A).cpu().numpy()
             rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+            rewards = rewards.squeeze()
 
         transition_dict = {
             'states': agent_s,
@@ -120,34 +121,6 @@ class DRAIL:
             'dones': [False] * len(agent_s)
         }
         self.agent.update(transition_dict)
-
-        # xs_E = torch.tensor(np.stack([expert_s.squeeze(), expert_a.squeeze()], axis=1), dtype=torch.float32, device=self.device)
-        # xs_A = torch.tensor(np.stack([agent_s, agent_a], axis=1), dtype=torch.float32, device=self.device)
-        # # now (batch, 2)
-        # xs_E = xs_E.view(xs_E.size(0), -1)
-        # xs_A = xs_A.view(xs_A.size(0), -1)
-        #
-        # for _ in range(self.epochs):
-        #     D_E = self.discriminator(xs_E)
-        #     D_A = self.discriminator(xs_A)
-        #     discriminator_loss = self.bce(D_E, torch.ones_like(D_E)) + self.bce(D_A, torch.zeros_like(D_A))
-        #     # print("D_expert", D_E.mean(), "D_agent", D_A.mean())
-        #     self.opt.zero_grad()
-        #     discriminator_loss.backward()
-        #     self.opt.step()
-        #
-        # with torch.no_grad():
-        #     rewards = self.discriminator.get_reward(xs_A).cpu().numpy()
-        #     rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
-        #
-        # transition_dict = {
-        #     'states': agent_s,
-        #     'actions': agent_a,
-        #     'rewards': rewards,
-        #     'next_states': next_s,
-        #     'dones': [False] * len(agent_s)
-        # }
-        # self.agent.update(transition_dict)
 
 
 class GAIL_MI:
@@ -173,6 +146,8 @@ class GAIL_MI:
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         rewards = self.mi_est.estimate_and_update(expert_s, expert_a, agent_s, agent_a)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        rewards = rewards.squeeze()
+
         transition_dict = dict(states=agent_s,
                                actions=agent_a,
                                rewards=rewards,
@@ -184,7 +159,7 @@ class GAIL_MI:
 class GAIL_Flow:
     """
     mode = 'ffjord'  or  'fm'
-    density_E  -- offline  pre-trained   (固定)
+    density_E  -- offline  pre-trained
     density_A  -- online   1-2 step
     """
 
@@ -232,11 +207,12 @@ class GAIL_Flow:
         xs_A = torch.cat([s_A, a_A], dim=1)
         self._update_agent_density(s_A.detach(), a_A.detach())
 
-        with torch.no_grad():
-            logp_E = self.E.log_prob(xs_A).cpu().numpy()
-            logp_A = self.A.log_prob(xs_A).cpu().numpy()
-            rewards = logp_E - logp_A
-            rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        # with torch.no_grad():
+        logp_E = self.E.log_prob(xs_A).detach().numpy()
+        logp_A = self.A.log_prob(xs_A).detach().numpy()
+        rewards = logp_E - logp_A
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        rewards = rewards.squeeze()
 
         self.agent.update(
             dict(
