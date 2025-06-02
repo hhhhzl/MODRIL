@@ -220,14 +220,16 @@ class GAIL_Flow:
         self.optA.step()
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        # xs_E = torch.tensor(np.stack([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
         s_A = torch.tensor(agent_s, dtype=torch.float32, device=self.device)
         a_A = torch.tensor(agent_a, dtype=torch.float32, device=self.device)
-        xs_A = torch.tensor(np.stack([agent_s, agent_a], 1), dtype=torch.float32, device=self.device)
+
         if s_A.dim() == 1:
             s_A = s_A.unsqueeze(-1)
         if a_A.dim() == 1:
             a_A = a_A.unsqueeze(-1)
+
+        # xs_E = torch.tensor(np.concatenate([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
+        xs_A = torch.cat([s_A, a_A], dim=1)
         self._update_agent_density(s_A.detach(), a_A.detach())
 
         with torch.no_grad():

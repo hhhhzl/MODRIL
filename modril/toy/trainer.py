@@ -17,10 +17,12 @@ class Trainer:
     # register tasks
     # Registry for tasks
     TASK_REGISTRY = {
+        # 1D
         'sine': Sine1D,
         'multi_sine': MultiSine1D,
         'gauss_sine': GaussSine1D,
         'poly': Poly1D,
+        # 2D
         'gaussian_hill': GaussianHill2D,
         'mexican_hat': MexicanHat2D,
         'saddle': Saddle2D,
@@ -33,7 +35,7 @@ class Trainer:
             function,
             method,
             n_episode=1000,
-            steps=200,
+            steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -85,19 +87,23 @@ class Trainer:
 
     def _init_trainer(self, method, **kwargs):
         if method == 'gail':
-            self.trainer = GAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, self.lr, device=self.device)
+            self.trainer = GAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, self.lr,
+                                device=self.device)
         elif method == 'drail':
             self.trainer = DRAIL(self.agent, self.state_dim, self.action_dim, disc_lr=self.lr, device=self.device)
         elif method in ('mine', 'nwj'):
-            self.trainer = GAIL_MI(self.agent, self.state_dim, self.action_dim, disc_lr=self.lr, device=self.device, mode=method)
+            self.trainer = GAIL_MI(self.agent, self.state_dim, self.action_dim, disc_lr=self.lr, device=self.device,
+                                   mode=method)
         elif method in ('ffjord', 'fm'):
-            self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method, lr=1e-3)
+            self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
+                                     lr=1e-3)
         elif method == 'modril':
             self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
-    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-5, clip_grad=1.0, log_interval=500):
+    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-5, clip_grad=1.0,
+                          log_interval=500):
         """
         method: "ffjord" or "fm"
         """
@@ -147,8 +153,7 @@ class Trainer:
     def runner(self):
         # pretrain for FFJORD
         if self.method == "ffjord" or self.method == "fm":
-            xs_E_full = torch.tensor(np.stack([self.expert_s, self.expert_a], 1), dtype=torch.float32,
-                                     device=self.device)
+            xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
             density_E = self._pretrain_density(
                 self.method,
                 FFJORDDensity(self.state_dim + self.action_dim).to(
@@ -177,24 +182,15 @@ class Trainer:
                     state = next_state
                 # use numpy expert arrays for training
                 self.trainer.learn(
-                    self.task.expert_s, 
+                    self.task.expert_s,
                     self.task.expert_a,
-                    state_list, 
-                    action_list, 
+                    state_list,
+                    action_list,
                     next_state_list
                 )
                 pbar.update(1)
         self.state_list = state_list
         self.action_list = action_list
-
-    # def plot(self):
-    #     plt.scatter(self.expert_s, self.expert_a, label='Ground Truth')
-    #     plt.scatter(self.state_list, self.action_list, label='Predicted')
-    #     plt.legend()
-    #     plt.xlabel('x')
-    #     plt.ylabel('y')
-    #     plt.savefig('result_sine.png')
-    #     plt.show()
 
     def plot(self):
         s_gt = np.array(self.expert_s)  # ground‐truth states
@@ -221,8 +217,7 @@ class Trainer:
             plt.scatter(s_pred[:, 0], a_pred[:, 0], label='Predicted', alpha=0.5)
             plt.xlabel('state')
             plt.ylabel('action')
-            plt.title(f'1D {self.task_name} Task: state vs action')
-
+            plt.title(f'1D {self.task_name} Task: state vs action ({{self.method}})')
 
         elif dim_s == 2:
             # 2a) action_dim=2：quiver
@@ -266,7 +261,7 @@ class Trainer:
 
                 plt.xlabel('state x')
                 plt.ylabel('state y')
-                plt.title(f'2D {self.task_name} Task: scatter plot (action as scalar)')
+                plt.title(f'2D {self.task_name} Task: scatter plot ({self.method})')
 
             else:
                 raise ValueError(f"Unsupported action dimension: {dim_a}")
@@ -327,7 +322,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('gaussian_hill', 'drail')
+    tr = Trainer('saddle', 'ffjord')
     tr.runner()
     tr.plot()
     # tr.plot(kind='reward_heatmap', extent=(-1, 1))
