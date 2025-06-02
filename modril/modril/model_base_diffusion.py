@@ -245,8 +245,8 @@ class MBDScore:
     def compute_reward(self, Ye, Ya):
         """
         Occupancy log-ratio
-        :param Ye: expert action batch
-        :param Ya: agent  action batch
+        :param Ye: expert state-action batch  [B_E, D]
+        :param Ya: agent  state-action batch  [B_A, D]
         :return:
         rewards
         """
@@ -257,7 +257,7 @@ class MBDScore:
             Ye = Ye.unsqueeze(1)
         if Ya.dim() == 1:
             Ya = Ya.unsqueeze(1)
-        Y_cat = torch.cat([Ye, Ya], dim=0)  # [B_E+B_A, …]
+        Y_cat = torch.cat([Ye, Ya], dim=0)
 
         with torch.no_grad():
             if self.use_reward_score:
@@ -279,7 +279,6 @@ class MBDScore:
     def _estimate_logp_change(self, y0):
         B, D = y0.shape
         alphas = self.alphas  # [N+1]
-        # forward diffusion y0 -> yN
         y_i = self._foward_diffusion(y0)
         # ---------- reverse accumulation ----------
         logp_change = torch.zeros(B, device=self.device)

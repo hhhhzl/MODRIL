@@ -142,7 +142,7 @@ class GaussianHill2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a)
+        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -174,7 +174,7 @@ class MexicanHat2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a)
+        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -205,7 +205,7 @@ class Saddle2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a)
+        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -236,7 +236,7 @@ class SinusoidalRipple2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a)
+        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -269,7 +269,7 @@ class BimodalGaussian2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a)
+        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
