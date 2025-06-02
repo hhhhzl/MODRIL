@@ -1,5 +1,5 @@
 import numpy as np
-from modril.toy.utils import normalize
+from modril.toy.utils import normalize, sample_expert_ground_truth
 from modril.toy.env import Environment, Environment2D
 
 
@@ -22,8 +22,11 @@ class Sine1D(TaskBase):
     Single-frequency sine: y = A * sin(ω x + φ) + noise
     """
 
-    def __init__(self, amplitude=1.0, freq=0.1, scale=2.0, phase=0.0, noise_std=0.05, n_points=1000):
-        x = np.linspace(0, 10, n_points)[:, None]
+    def __init__(self, amplitude=1.0, freq=0.1, scale=2.0, phase=0.0, noise_std=0.05, n_points=1000, split=20):
+        # x = np.linspace(0, 10, n_points)[:, None]
+        x_torch = sample_expert_ground_truth(n_points, 0, 10, split)
+        x = x_torch.unsqueeze(-1).numpy()
+
         y = amplitude * np.sin(scale * freq * np.pi * x + phase)[:, 0]
         y = y + np.random.randn(n_points) * noise_std
         s_norm, self.s_mu, self.s_std = normalize(x)

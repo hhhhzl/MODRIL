@@ -223,6 +223,49 @@ class GAIL_Flow:
         )
 
 
+class EnergyGAIL:
+    """
+    r(s,a) = -E(s,a)，
+    """
+
+    def __init__(self, agent, state_dim, action_dim, hidden_dim, device='cuda'):
+        self.agent = agent
+        self.device = device
+
+        self.E = None
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.hidden_dim = hidden_dim
+
+    def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
+        agent_s_np = np.asarray(agent_s, dtype=np.float32)
+        agent_a_np = np.asarray(agent_a, dtype=np.float32)
+        if agent_s_np.ndim == 1:
+            agent_s_np = agent_s_np.reshape(-1, 1)
+        if agent_a_np.ndim == 1:
+            agent_a_np = agent_a_np.reshape(-1, 1)
+
+        s_A = torch.from_numpy(agent_s_np).to(self.device)  # (B, state_dim)
+        a_A = torch.from_numpy(agent_a_np).to(self.device)  # (B, action_dim)
+        x_A = torch.cat([s_A, a_A], dim=1)  # (B, state_dim + action_dim)
+
+        with torch.no_grad():
+            energy = self.E.forward(x_A).cpu().numpy()  # (B,)
+
+        rewards = -energy
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        rewards = rewards.squeeze().tolist()
+
+        transition_dict = {
+            'states': agent_s,
+            'actions': agent_a,
+            'rewards': rewards,
+            'next_states': next_s,
+            'dones': [False] * len(agent_s)
+        }
+        self.agent.update(transition_dict)
+
+
 # ============================================================
 #  Model-Based Diffusion - occupancy-reward
 # ============================================================

@@ -7,8 +7,8 @@ import datetime
 from modril.toy.env import Environment
 from modril.toy.utils import norm_state
 from modril.toy.policy import PPO
-from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD
-from modril.toy.discriminators import FFJORDDensity, FlowMatching
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
+from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
 from modril.toy.toy_tasks import *
 import random
 
@@ -120,6 +120,8 @@ class Trainer:
         elif method in ('ffjord', 'fm'):
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
                                      lr=1e-3)
+        elif method == 'ebgail':
+            self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
             self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device, steps=self.steps)
         else:
@@ -128,7 +130,7 @@ class Trainer:
     def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-4, clip_grad=1.0,
                           log_interval=500):
         """
-        method: "ffjord" or "fm"
+        method: "ffjord" or "fm" or "DEEN"
         """
         if not torch.is_tensor(data):
             data_t = torch.tensor(data, dtype=torch.float32, device=self.device)
@@ -148,8 +150,10 @@ class Trainer:
 
             if method == "ffjord":
                 loss = estimator.nll(x0)
-            else:  # fm
+            elif method == "fm":  # fm
                 loss = estimator.c_fm_loss(s, a, dequant_std=0.02)
+            else:
+                loss = estimator.deen_loss(x0)
 
             opt.zero_grad()
             loss.backward()
@@ -175,16 +179,31 @@ class Trainer:
 
     def runner(self):
         # pretrain for FFJORD
-        if self.pretrain and (self.method == "ffjord" or self.method == "fm"):
+        if self.pretrain and (self.method == "ffjord" or self.method == "fm" or self.method == 'ebgail'):
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
-            density_E = self._pretrain_density(
-                self.method,
-                FFJORDDensity(self.state_dim + self.action_dim).to(
-                    self.device) if self.method == "ffjord" else FlowMatching(self.state_dim, self.action_dim,
-                                                                              self.device).to(self.device),
-                xs_E_full,
-                int(self.n_episode * self.steps / 100) if self.method == "ffjord" else 100000
-            )
+            if self.method == "ffjord":
+                density_E = self._pretrain_density(
+                    self.method,
+                    FFJORDDensity(self.state_dim + self.action_dim).to(self.device),
+                    xs_E_full,
+                    int(self.n_episode * self.steps / 100)
+                )
+            elif self.method == "fm":
+                density_E = self._pretrain_density(
+                    self.method,
+                    FlowMatching(self.state_dim, self.action_dim, self.device).to(self.device),
+                    xs_E_full,
+                    100000
+                )
+            elif self.method == 'ebgail':
+                density_E = self._pretrain_density(
+                    self.method,
+                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(self.device),
+                    xs_E_full,
+                    int(self.n_episode * self.steps / 10)
+                )
+            else:
+                raise
             self.trainer.E = density_E
 
         # training loop
@@ -440,7 +459,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'fm')
+    tr = Trainer('sine', 'ebgail')
     tr.runner()
     tr.plot()
     tr.plot_metrics()

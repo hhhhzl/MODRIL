@@ -42,3 +42,16 @@ def compute_advantage(gamma, lmbda, td_delta):
         last_adv = td[t] + gamma * lmbda * last_adv
         advantages[t] = last_adv
     return advantages
+
+
+def random_sample_from_intervals(intervals):
+    interval = intervals[torch.randint(len(intervals), (1,))]
+    return torch.rand(1) * (interval[1] - interval[0]) + interval[0]
+
+
+def sample_expert_ground_truth(num, min=0, max=10, split=100):
+    intervals = np.arange(min, max, (max - min) / split).reshape(-1, 2).tolist()
+    x = torch.stack(
+        [random_sample_from_intervals(intervals) for _ in range(num)]
+    ).squeeze()
+    return x

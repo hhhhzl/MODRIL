@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torchdiffeq import odeint
 import numpy as np
 
+
 class Discriminator(nn.Module):
     def __init__(
             self,
@@ -251,7 +252,6 @@ class FlowMatching(nn.Module):
     def _v_star(self, a_t, a0, t, noise):
         return noise - a0
 
-
     @staticmethod
     def _hutch_div(y: torch.Tensor, f: torch.Tensor) -> torch.Tensor:
         v = torch.randint_like(y, 0, 2).float().mul_(2).sub_(1)  # Rademacher ±1
@@ -312,3 +312,49 @@ class FlowMatching(nn.Module):
         # logp
         logp_prior = self.prior.log_prob(a_t).sum(-1)  # [B]
         return logp_prior + log_det
+
+
+class DEENDensity(nn.Module):
+    """
+    Denoising Energy Estimator Network (DEEN)
+    for estimating expert(state,action) energy E(s,a)：
+       L = E_{x~ρ_E, y=x+N(0,σ^2I)} || x - y + σ^2 ∇_y E_θ(y) ||^2
+    """
+
+    def __init__(self, dim, hidden_dim=128, sigma=0.1):
+        """
+        """
+        super().__init__()
+        self.dim = dim
+        self.hidden_dim = hidden_dim
+        self.sigma = sigma
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+
+    def forward(self, x):
+        return self.net(x).squeeze(-1)  # [B]
+
+    def deen_loss(self, x):
+        eps = torch.randn_like(x) * self.sigma  # [B, dim]
+        y = x + eps  # [B, dim]
+
+        y.requires_grad_(True)
+        Ey = self.forward(y)  # [B]
+        grad_y = torch.autograd.grad(
+            outputs=Ey.sum(),
+            inputs=y,
+            create_graph=True,
+            retain_graph=True
+        )[0]  # [B, dim]
+        residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
+        loss = (residual.pow(2).sum(dim=1)).mean()  # 标量
+        return loss
+
+    def log_energy(self, x):
+        with torch.no_grad():
+            return self.forward(x)  # [B]
