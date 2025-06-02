@@ -4,7 +4,7 @@ from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
 from modril.toy.utils import timestep_embed
 import torch.nn.functional as F
 from torchdiffeq import odeint
-
+import numpy as np
 
 class Discriminator(nn.Module):
     def __init__(
@@ -132,11 +132,14 @@ class MI_Estimator:
         self.ma_rate = ma_rate
 
     def estimate_and_update(self, s_E, a_E, s_A, a_A):
-        """"""
-        s_E = torch.tensor(s_E, dtype=torch.float32, device=self.device)
-        a_E = torch.tensor(a_E, dtype=torch.float32, device=self.device)
-        s_A = torch.tensor(s_A, dtype=torch.float32, device=self.device)
-        a_A = torch.tensor(a_A, dtype=torch.float32, device=self.device)
+        s_E_np = np.asarray(s_E, dtype=np.float32)
+        a_E_np = np.asarray(a_E, dtype=np.float32)
+        s_A_np = np.asarray(s_A, dtype=np.float32)
+        a_A_np = np.asarray(a_A, dtype=np.float32)
+        s_E = torch.from_numpy(s_E_np).float().to(self.device)
+        a_E = torch.from_numpy(a_E_np).float().to(self.device)
+        s_A = torch.from_numpy(s_A_np).float().to(self.device)
+        a_A = torch.from_numpy(a_A_np).float().to(self.device)
 
         # if they came in as 1-D, make them (batch,1)
         if s_E.dim() == 1:
@@ -239,17 +242,21 @@ class FlowMatching(nn.Module):
     def __init__(self, s_dim, a_dim, device, eps=1e-2):
         super().__init__()
         self.s_dim, self.a_dim = s_dim, a_dim
-        # self.vnet = VNet(dim)
         self.vnet = ConditionalVNet(s_dim, a_dim).to(device)
         self.dim = self.s_dim + self.a_dim
-        # self.prior = torch.distributions.MultivariateNormal(
-        #     torch.zeros(dim), torch.eye(dim)
-        # )
         self.prior = torch.distributions.Normal(0, 1)
         self.eps = eps
+        self.T = 1.0
 
-    def _v_star(self, x_t, x0, t):
-        return (x0 - self.prior.mean.to(x0)) / (1 - t)
+    def _v_star(self, a_t, a0, t, noise):
+        return noise - a0
+
+
+    @staticmethod
+    def _hutch_div(y: torch.Tensor, f: torch.Tensor) -> torch.Tensor:
+        v = torch.randint_like(y, 0, 2).float().mul_(2).sub_(1)  # Rademacher ±1
+        (Jv,) = torch.autograd.grad(f, y, v, create_graph=True, retain_graph=True, only_inputs=True)  # J^T v
+        return (Jv * v).sum(-1)
 
     def fm_loss(self, x0):
         B = x0.size(0)
@@ -257,7 +264,7 @@ class FlowMatching(nn.Module):
         noise = self.prior.sample((B,)).to(x0)
         x_t = (1 - t) * x0 + t * noise
 
-        v_star = self._v_star(x_t, x0, t)  # [B, D]
+        v_star = self._v_star(x_t, x0, t, noise)  # [B, D]
         v_pred = self.vnet(x_t, t)  # [B, D]
 
         weight = (1 - t).pow(2)  # [B,1]
@@ -274,7 +281,7 @@ class FlowMatching(nn.Module):
 
         noise = self.prior.sample((B, self.a_dim)).to(a0)
         a_t = (1 - t) * a0 + t * noise
-        v_star = (a0 - 0.) / (1 - t)  # prior.mean = 0
+        v_star = self._v_star(a_t, a0, t, noise)
 
         v_pred = self.vnet(a_t, s, t)
         weight = (1 - t).pow(2)  # [B,1]
@@ -282,31 +289,26 @@ class FlowMatching(nn.Module):
         return (weight * mse_i).mean()
 
     # ------ estimate log-ratio via path integral ------
-    def log_prob(self, x, n_steps=16):
-        """
-        conditional log_prob
-        """
-        B = x.size(0)
-        s = x[:, :self.s_dim]  # [B, s_dim]
-        a = x[:, self.s_dim:]  # [B, a_dim]
+    def log_prob(self, x: torch.Tensor, n_steps: int = 32) -> torch.Tensor:
+        s, a0 = x.split([self.s_dim, x.size(-1) - self.s_dim], dim=-1)
+        B = a0.size(0)
+        t_grid = torch.linspace(0.0, 1.0, n_steps + 1, device=x.device)
+        delta = 1.0 / n_steps
 
-        t_grid = torch.linspace(0, 1, n_steps + 1, device=x.device)  # [n_steps+1]
-        a_t = a
-        sum_trap = torch.zeros(B, device=x.device)
-        for i in range(n_steps):
-            t_mid = 0.5 * (t_grid[i] + t_grid[i + 1])  # scalar
-            t_mid_batch = t_mid.expand(B, 1)  # [B,1]
-            v = self.vnet(a_t, s, t_mid_batch)  # [B, a_dim]
+        log_det = torch.zeros(B, device=x.device)
+        a_t = a0.detach()
 
-            # step = Δt = 1 / n_steps
-            delta = 1.0 / n_steps
+        for k in range(n_steps):
+            t_mid = 0.5 * (t_grid[k] + t_grid[k + 1])
 
-            # Euler
-            a_t = a_t + v * delta  # [B, a_dim]
-            sum_trap += v.norm(dim=1) * delta  # [B]
+            with torch.enable_grad():
+                a_t = a_t.detach().requires_grad_(True)
+                v_t = self.vnet(a_t, s, t_mid.expand(B, 1))  # [B, dim_a]
+                div = self._hutch_div(a_t, v_t)  # [B]
 
-        logp_prior = self.prior.log_prob(a_t)  #
-        logp_prior = logp_prior.sum(dim=1)  # [B]
+            log_det -= div * delta
+            a_t = (a_t + v_t.detach() * delta)  # Euler
 
-        # 4) return log p = log p_prior - ∫||v||dt
-        return logp_prior - sum_trap  # [B]
+        # logp
+        logp_prior = self.prior.log_prob(a_t).sum(-1)  # [B]
+        return logp_prior + log_det

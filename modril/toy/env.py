@@ -2,29 +2,71 @@ import numpy as np
 from modril.toy.utils import norm_state, denorm_state
 
 
+# class Environment2D:
+#     """
+#     for 2D surface toy tasks
+#     """
+#
+#     def __init__(self, s_norm, a_norm, state_dim, action_dim):
+#         self.s_norm = s_norm  # np.ndarray shape (N,2)
+#         self.a_norm = a_norm  # np.ndarray shape (N,1)
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#
+#     def reset(self):
+#         idx = np.random.randint(len(self.s_norm))
+#         return self.s_norm[idx]
+#
+#     def step(self, state_norm, pred_a_norm):
+#         dists = np.linalg.norm(self.s_norm - state_norm, axis=1)
+#         idx = dists.argmin()
+#         true_a_norm = self.a_norm[idx]
+#         reward = true_a_norm
+#         next_state = self.reset()
+#         done = False
+#         info = {}
+#         return next_state, reward, done, info
+
+
 class Environment2D:
     """
-    for 2D surface toy tasks
+    2D surface toy environment.
     """
 
-    def __init__(self, s_norm, a_norm, state_dim, action_dim):
-        self.s_norm = s_norm  # np.ndarray shape (N,2)
-        self.a_norm = a_norm  # np.ndarray shape (N,1)
+    def __init__(self, s_norm: np.ndarray, a_norm: np.ndarray, state_dim: int, action_dim: int):
+        assert s_norm.ndim == 2 and s_norm.shape[1] == 2
+        assert a_norm.ndim == 2 and a_norm.shape[1] == 1
+        assert state_dim == 2 and action_dim == 1
+
+        self.s_norm = s_norm
+        self.a_norm = a_norm
         self.state_dim = state_dim
         self.action_dim = action_dim
+        self.num_states = self.s_norm.shape[0]
 
-    def reset(self):
-        idx = np.random.randint(len(self.s_norm))
-        return self.s_norm[idx]
+    def reset(self) -> np.ndarray:
+        idx = np.random.randint(0, self.num_states)
+        return self.s_norm[idx].astype(np.float32)
 
-    def step(self, state_norm, pred_a_norm):
-        dists = np.linalg.norm(self.s_norm - state_norm, axis=1)
-        idx = dists.argmin()
-        true_a_norm = self.a_norm[idx]
-        reward = true_a_norm
-        next_state = self.reset()
+    def step(self, state_norm: np.ndarray, pred_a_norm: np.ndarray):
+        state_norm = np.asarray(state_norm, dtype=np.float32).reshape(-1, self.state_dim)
+        pred_a_norm = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, self.action_dim)
+        assert not np.any(np.isnan(state_norm)), f"step(): inputs state_norm has NaN: {state_norm}"
+        assert not np.any(np.isnan(pred_a_norm)), f"step(): inputs pred_a_norm has NaN: {pred_a_norm}"
+        s_vec = state_norm[0]  # shape (2,)
+        a_pred = pred_a_norm[0]  # shape (1,)
+        diffs = self.s_norm - s_vec  # shape (N, 2)
+        dists = np.linalg.norm(diffs, axis=1)  # shape (N,)
+        idx = int(np.argmin(dists))
+        true_a_norm = self.a_norm[idx]  # shape (1,)
+        error = a_pred - true_a_norm  # shape (1,)
+        reward = - float(np.mean(error ** 2))
+        next_idx = np.random.randint(0, self.num_states)
+        next_state = self.s_norm[next_idx]  # shape (2,)
+        next_state = next_state.astype(np.float32)  # (2,)
+        true_a_norm = true_a_norm.astype(np.float32)  # (1,)
         done = False
-        info = {}
+        info = {"true_a_norm": true_a_norm.copy()}
         return next_state, reward, done, info
 
 
