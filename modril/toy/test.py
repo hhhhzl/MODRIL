@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from modril.modril.model_base_diffusion import MBDScore
 from modril.toy.toy_tasks import Sine1D
+from tqdm import tqdm
 
 # ——— 步骤 1：生成一批专家样本，用来计算 g_E_mean ———
 N_expert = 200
@@ -12,6 +13,7 @@ expert_batch_a = np.sin(expert_batch_s)
 
 # ——— 步骤 2：初始化 MBDScore，开启推荐参数（toy 环境里必须这样） ———
 task = Sine1D()
+print(task.env,__name__)
 mbd = MBDScore(
     task.env,
     env_name="toy",
@@ -32,7 +34,7 @@ action_grid = np.linspace(-2.0, 2.0, num_actions)  # 自行选择 action 范围�
 
 # ——— 步骤 5：对所有 (state, action) 网格点，都调用一次 compute_reward ———
 data = []
-for s in state_grid:
+for s in tqdm(state_grid):
     for a in action_grid:
         # 注意：compute_reward 的输入都要是 1D float32 array
         gA = mbd.compute_reward(np.array([s], dtype=np.float32),

@@ -4,6 +4,7 @@ import torch.nn as nn
 from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
 import numpy as np
 from modril.modril.model_base_diffusion import MBDScore
+from modril.toy.utils import dynamic_convert
 
 
 class GAIL:
@@ -24,6 +25,8 @@ class GAIL:
         self.device = device
         self.bce = nn.BCELoss()
         self.epochs = epochs
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def learn(
             self,
@@ -38,16 +41,20 @@ class GAIL:
         expert_states = torch.from_numpy(expert_s_arr).to(self.device)  # (batch, state_dim)
         expert_actions = torch.from_numpy(expert_a_arr).to(self.device)
 
-        agent_s_arr = np.array(agent_s, dtype=np.float32)
-        agent_a_arr = np.array(agent_a, dtype=np.float32)
+        # agent_s maybe list of scalars（for static environment），also list of 1D vector（dynamic environment）
+        # so reshape to (state_dim,)：
+        agent_s_arr = dynamic_convert(agent_s, self.state_dim)
+        agent_a_arr = dynamic_convert(agent_a, self.state_dim)  # (batch, action_dim)
         agent_states = torch.from_numpy(agent_s_arr).to(self.device)  # (batch, state_dim)
-        agent_actions = torch.from_numpy(agent_a_arr).to(self.device)
+        agent_actions = torch.from_numpy(agent_a_arr).to(self.device)  # (batch, action_dim)
 
+        # ------ Discriminator Training ------
         expert_prob = self.discriminator(expert_states, expert_actions)
         agent_prob = self.discriminator(agent_states, agent_actions)
-        discriminator_loss = self.bce(expert_prob, torch.ones_like(expert_prob)) + self.bce(agent_prob,
-                                                                                            torch.zeros_like(
-                                                                                                agent_prob))
+        discriminator_loss = (
+                self.bce(expert_prob, torch.ones_like(expert_prob))
+                + self.bce(agent_prob, torch.zeros_like(agent_prob))
+        )
         self.discriminator_optimizer.zero_grad()
         discriminator_loss.backward()
         self.discriminator_optimizer.step()
@@ -76,6 +83,8 @@ class DRAIL:
         self.device = device
         self.bce = nn.BCELoss()
         self.epochs = epochs
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         expert_s_arr, expert_a_arr = np.asarray(expert_s), np.asarray(expert_a)
@@ -84,7 +93,7 @@ class DRAIL:
         if expert_a_arr.ndim == 1:
             expert_a_arr = expert_a_arr.reshape(-1, 1)
 
-        agent_s_arr, agent_a_arr = np.asarray(agent_s), np.asarray(agent_a)
+        agent_s_arr, agent_a_arr = dynamic_convert(agent_s, self.state_dim), dynamic_convert(agent_a, self.state_dim)
         if agent_s_arr.ndim == 1:
             agent_s_arr = agent_s_arr.reshape(-1, 1)
         if agent_a_arr.ndim == 1:
@@ -174,6 +183,8 @@ class GAIL_Flow:
             raise ValueError(f"Invalid mode: {mode}")
         self.agent = agent
         self.device = device
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def _update_agent_density(self, s_A, a_A):
         """
@@ -191,8 +202,8 @@ class GAIL_Flow:
         self.optA.step()
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        agent_s_np = np.asarray(agent_s, dtype=np.float32)
-        agent_a_np = np.asarray(agent_a, dtype=np.float32)
+        agent_s_np = dynamic_convert(agent_s, self.state_dim)
+        agent_a_np = dynamic_convert(agent_a, self.state_dim)
         s_A = torch.from_numpy(agent_s_np).to(self.device)  # shape: [B] or [B, state_dim]
         a_A = torch.from_numpy(agent_a_np).to(self.device)
 
@@ -238,8 +249,8 @@ class EnergyGAIL:
         self.hidden_dim = hidden_dim
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
-        agent_s_np = np.asarray(agent_s, dtype=np.float32)
-        agent_a_np = np.asarray(agent_a, dtype=np.float32)
+        agent_s_np = dynamic_convert(agent_s, self.state_dim)
+        agent_a_np = dynamic_convert(agent_a, self.state_dim)
         if agent_s_np.ndim == 1:
             agent_s_np = agent_s_np.reshape(-1, 1)
         if agent_a_np.ndim == 1:
@@ -276,6 +287,8 @@ class GAIL_MBD:
             self,
             agent,
             env,
+            state_dim,
+            action_dim,
             steps,
             env_name: str,
             device='cuda',
@@ -284,6 +297,8 @@ class GAIL_MBD:
         self.mbd = MBDScore(env, env_name, steps=steps, device=device, **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         expert_s_arr = np.asarray(expert_s, dtype=np.float32)
@@ -295,7 +310,7 @@ class GAIL_MBD:
         xs_E_arr = np.concatenate([expert_s_arr, expert_a_arr], axis=1)  # shape = (N, 2)
         xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
 
-        agent_s_arr = np.asarray(agent_s, dtype=np.float32)
+        agent_s_arr = dynamic_convert(agent_s, self.state_dim)
         agent_a_arr = np.asarray(agent_a, dtype=np.float32)
         if agent_s_arr.ndim == 1:
             agent_s_arr = agent_s_arr.reshape(-1, 1)

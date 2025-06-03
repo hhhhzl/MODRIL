@@ -55,3 +55,22 @@ def sample_expert_ground_truth(num, min=0, max=10, split=100):
         [random_sample_from_intervals(intervals) for _ in range(num)]
     ).squeeze()
     return x
+
+
+def dynamic_convert(array, dim):
+    try:
+        states_tmp = np.asarray(array, dtype=np.float32)
+        if states_tmp.ndim == 2 and states_tmp.shape[1] == dim:
+            states_np = states_tmp
+        elif states_tmp.ndim == 1 and dim == 1:
+            states_np = states_tmp.reshape(-1, 1)
+        else:
+            raise NotImplementedError
+        return states_np
+    except:
+        state_list = []
+        for s in array:
+            arr = np.asarray(s, dtype=np.float32).reshape(-1)
+            arr = arr.reshape(dim)
+            state_list.append(arr)
+        return np.stack(state_list, axis=0)

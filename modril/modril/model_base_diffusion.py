@@ -155,13 +155,13 @@ class MBDScore:
         # Yim1 = torch.clamp(Yim1, -1.0, 1.0)
         Ybar_im1 = Yim1 / torch.sqrt(self.alphas_bar[i - 1])
 
-        if i % 50 == 0:
-            print(f"[Step {i}] rews: min {rews.min().item():.4f}, max {rews.max().item():.4f}, mean {rew_mean:.4f}, std {rews.std().item():.4f}")
-            print(f"[Step {i}] logp0 distribution: min {logp0.min().item():.4f}, max {logp0.max().item():.4f}")
-            print(f"[Step {i}] weight: min {weights.min().item():.4f}, max {weights.max().item():.4f}, sum {weights.sum().item():.4f}")
-            print(f"[Step {i}] Y0s range: min {Y0s.min().item():.4f}, max {Y0s.max().item():.4f}, mean {Y0s.mean().item():.4f}")
-            print(f"[Step {i}] Ybar range: min {Ybar.min().item():.4f}, max {Ybar.max().item():.4f}")
-            print(f"[Step {i}] score range: min {score.min().item():.4f}, max {score.max().item():.4f}")
+        # if i % 50 == 0:
+        #     print(f"[Step {i}] rews: min {rews.min().item():.4f}, max {rews.max().item():.4f}, mean {rew_mean:.4f}, std {rews.std().item():.4f}")
+        #     print(f"[Step {i}] logp0 distribution: min {logp0.min().item():.4f}, max {logp0.max().item():.4f}")
+        #     print(f"[Step {i}] weight: min {weights.min().item():.4f}, max {weights.max().item():.4f}, sum {weights.sum().item():.4f}")
+        #     print(f"[Step {i}] Y0s range: min {Y0s.min().item():.4f}, max {Y0s.max().item():.4f}, mean {Y0s.mean().item():.4f}")
+        #     print(f"[Step {i}] Ybar range: min {Ybar.min().item():.4f}, max {Ybar.max().item():.4f}")
+        #     print(f"[Step {i}] score range: min {score.min().item():.4f}, max {score.max().item():.4f}")
         return score, Yim1, Ybar_im1, rews.mean().item()
 
     def _reverse_diffusion_step_prior(self, i, y_i):
@@ -220,7 +220,8 @@ class MBDScore:
                     r_t[b] = rb
                     done_t[b] = db
             next_states = np.asarray(next_states)
-            rews[~done_mask, t] = r_t[~done_mask]
+            r_t_reduced = np.mean(r_t, axis=(1, 2))
+            rews[~done_mask, t] = r_t_reduced[~done_mask]
             done_mask |= done_t
             cur_states = next_states
             states.append(cur_states.copy())
@@ -258,9 +259,9 @@ class MBDScore:
 
         g_E, g_A = torch.split(g_cat, [Ye.size(0), Ya.size(0)], dim=0)
         g_E_mean = g_E.mean()
-        print(f"[compute_reward] g_E mean {g_E.mean().item():.4f}")
-        print(f"[compute_reward] g_A mean {g_A.mean().item():.4f}")
-        print(f"[compute_reward] final mean reward for each agent = {(g_E_mean - g_A).cpu().numpy().mean().round(4)}")
+        # print(f"[compute_reward] g_E mean {g_E.mean().item():.4f}")
+        # print(f"[compute_reward] g_A mean {g_A.mean().item():.4f}")
+        # print(f"[compute_reward] final mean reward for each agent = {(g_E_mean - g_A).cpu().numpy().mean().round(4)}")
         return (g_E_mean - g_A).cpu().numpy()
 
     def _estimate_logp_change(self, y0):

@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 import datetime
-from modril.toy.env import Environment
-from modril.toy.utils import norm_state
+from modril.toy.utils import dynamic_convert
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
 from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
 from modril.toy.toy_tasks import *
 import random
+
 
 seed = 1234
 random.seed(seed)
@@ -107,6 +107,8 @@ class Trainer:
         self.logpE_history = []
         self.logpA_history = []
         self.kl_history = []
+        self.all_states = []
+        self.all_actions = []
 
     def _init_trainer(self, method, **kwargs):
         if method == 'gail':
@@ -123,7 +125,7 @@ class Trainer:
         elif method == 'ebgail':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
-            self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device, steps=self.steps)
+            self.trainer = GAIL_MBD(self.agent, env=self.task.env, state_dim=self.state_dim, action_dim=self.action_dim, env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
@@ -217,7 +219,7 @@ class Trainer:
                 env_rewards = []
                 for step in range(self.steps):
                     action = self.agent.take_action(state)
-                    next_state, reward, done, info = self.env.step(state, action)
+                    next_state, reward, done, info = self.env.step(action)
                     state_list.append(state)
                     action_list.append(action)
                     next_state_list.append(next_state)
@@ -277,15 +279,31 @@ class Trainer:
                     self.logpA_history.append(None)
                     self.kl_history.append(None)
 
+                self.all_states.append(state_list)
+                self.all_actions.append(action_list)
                 pbar.update(1)
-        self.state_list = state_list
-        self.action_list = action_list
 
-    def plot(self):
+    def plot(self, K=5):
         s_gt = np.array(self.expert_s)  # ground‐truth states
         a_gt = np.array(self.expert_a)  # ground‐truth actions
-        s_pred = np.array(self.state_list)  # pred states
-        a_pred = np.array(self.action_list)  # pred actions
+
+        last_states = self.all_states[-K:]
+        last_actions = self.all_actions[-K:]
+
+        flat_states = []
+        flat_actions = []
+        for ep_states, ep_actions in zip(last_states, last_actions):
+            for s in ep_states:
+                arrs = np.asarray(s, dtype=np.float32).reshape(-1)
+                arrs = arrs.reshape(self.state_dim)
+                flat_states.append(arrs)
+            for a in ep_actions:
+                arra = np.asarray(a, dtype=np.float32).reshape(-1)
+                arra = arra.reshape(self.action_dim)
+                flat_actions.append(arra)
+
+        s_pred = np.stack(flat_states, axis=0)
+        a_pred = np.stack(flat_actions, axis=0)  # pred actions
 
         if s_gt.ndim == 1:
             s_gt = s_gt.reshape(-1, 1)
@@ -461,5 +479,5 @@ class Trainer:
 if __name__ == '__main__':
     tr = Trainer('sine', 'gail')
     tr.runner()
-    tr.plot()
+    tr.plot(5)
     tr.plot_metrics()

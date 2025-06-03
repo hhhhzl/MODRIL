@@ -1,6 +1,6 @@
 import torch
 from modril.toy.networks import Actor, Critic
-from modril.toy.utils import compute_advantage
+from modril.toy.utils import compute_advantage, dynamic_convert
 import torch.nn.functional as F
 import numpy as np
 
@@ -8,6 +8,16 @@ class PPO:
     def __init__(self, state_dim, action_dim, hidden_dim, actor_lr, critic_lr, lmbda, epochs, eps, gamma, device):
         self.actor = Actor(state_dim, hidden_dim, action_dim).to(device)
         self.critic = Critic(state_dim, hidden_dim).to(device)
+
+        for m in self.actor.modules():
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain('relu'))
+                torch.nn.init.constant_(m.bias, 0.0)
+        for m in self.critic.modules():
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain('relu'))
+                torch.nn.init.constant_(m.bias, 0.0)
+
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
         self.gamma = gamma
@@ -15,6 +25,8 @@ class PPO:
         self.epochs = epochs
         self.eps = eps
         self.device = device
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def take_action(self, state):
         if isinstance(state, np.ndarray):
@@ -34,9 +46,9 @@ class PPO:
             return action
 
     def update(self, transition_dict):
-        states_np = np.array(transition_dict['states'], dtype=np.float32)
-        next_states_np = np.array(transition_dict['next_states'], dtype=np.float32)
-        actions_np = np.array(transition_dict['actions'])
+        states_np = dynamic_convert(transition_dict['states'], self.state_dim)  # (batch, state_dim)
+        next_states_np = dynamic_convert(transition_dict['next_states'], self.state_dim)  # (batch, state_dim)
+        actions_np = dynamic_convert(transition_dict['actions'], self.state_dim)
         rewards_np = np.array(transition_dict['rewards'], dtype=np.float32)
         dones_np = np.array(transition_dict['dones'], dtype=np.float32)
 
@@ -50,7 +62,7 @@ class PPO:
         else:
             next_states = torch.from_numpy(next_states_np).to(self.device)
 
-        actions = torch.from_numpy(actions_np).view(-1, 1).to(self.device)  # 一般 action_dim=1
+        actions = torch.from_numpy(actions_np).view(-1, 1).to(self.device)
         rewards = torch.from_numpy(rewards_np).view(-1, 1).to(self.device)
         dones = torch.from_numpy(dones_np).view(-1, 1).to(self.device)
 

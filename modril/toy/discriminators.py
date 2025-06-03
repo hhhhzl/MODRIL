@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
-from modril.toy.utils import timestep_embed
+from modril.toy.utils import timestep_embed, dynamic_convert
 import torch.nn.functional as F
 from torchdiffeq import odeint
 import numpy as np
@@ -131,11 +131,13 @@ class MI_Estimator:
         self.opt = torch.optim.Adam(self.T.parameters(), lr=lr)
         self.ma_et = None
         self.ma_rate = ma_rate
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
     def estimate_and_update(self, s_E, a_E, s_A, a_A):
         s_E_np = np.asarray(s_E, dtype=np.float32)
         a_E_np = np.asarray(a_E, dtype=np.float32)
-        s_A_np = np.asarray(s_A, dtype=np.float32)
+        s_A_np = dynamic_convert(s_A, self.state_dim)
         a_A_np = np.asarray(a_A, dtype=np.float32)
         s_E = torch.from_numpy(s_E_np).float().to(self.device)
         a_E = torch.from_numpy(a_E_np).float().to(self.device)
