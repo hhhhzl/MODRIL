@@ -43,7 +43,7 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=1000,
+            n_episode=2000,
             steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
@@ -487,7 +487,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'fm')
+    tr = Trainer('sine', 'modril')
     tr.runner()
     tr.plot(10)
     tr.plot_metrics()

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from tqdm import tqdm
-
+from modril.toy.utils import dynamic_convert
 
 class MBDScore:
     def __init__(
@@ -145,7 +145,8 @@ class MBDScore:
         else:
             states0 = np.array([self.state_init] * self.Nsample, dtype=np.float32)
 
-        rewss, _ = self._rollout_batch(states0, actions)
+
+        rewss, states = self._rollout_batch(states0, actions)
         rews = torch.tensor(np.mean(rewss, axis=-1), device=self.device)
         rew_std = rews.std()
         rew_std = torch.where(rew_std < 1e-4, torch.tensor(1.0, device=self.device), rew_std)
@@ -154,6 +155,13 @@ class MBDScore:
 
         # Update trajectory using weighted average
         weights = torch.nn.functional.softmax(logp0, dim=0)
+
+        print(states[:10])
+        states_tensor = torch.from_numpy(np.array(states)).to(dtype=Y0s.dtype, device=Y0s.device)
+        # states_tensor = torch.tensor(states, dtype=Y0s.dtype, device=Y0s.device)
+        states_tensor = states_tensor.permute(1, 0).unsqueeze(-1)
+        Y0s[..., :self.state_dim] = states_tensor
+
         Y0s = Y0s.to(weights.dtype)
         Ybar = torch.einsum("n,nij->ij", weights, Y0s)
 
@@ -211,7 +219,7 @@ class MBDScore:
         states = [states0.copy()]
         cur_states = states0.copy()
         done_mask = np.zeros(B, dtype=bool)
-        for t in range(self.Hsample):
+        for t in range(T - 1):
             a_t = actions[:, t]  # a_t: [B, Nu]
             if hasattr(self.env, "batch_step"):
                 next_states, r_t, done_t, _ = self.env.batch_step(cur_states, a_t)
