@@ -9,6 +9,8 @@ class MBDScore:
             env,
             env_name,
             steps,
+            state_dim,
+            action_dim,
             seed=0,
             disable_recommended_params=False,
             device='cpu',
@@ -28,6 +30,7 @@ class MBDScore:
             disable_recommended_params: Whether to disable recommended parameters
             device: Device to run computations on ('cpu' or 'cuda')
         """
+        self.agent_Y0_buffer = None
         self.device = device
         self.env = env
         self.env_name = env_name
@@ -48,10 +51,12 @@ class MBDScore:
         self.temp_sample = temp_sample
         self.beta0 = 1e-4
         self.betaT = 0.02
+        self.state_dim = state_dim
+        self.action_dim = action_dim
 
         # Recommended parameters for specific environments
         self.recommended_params = {
-            "temp_sample": {"toy": 0.01},
+            "temp_sample": {"toy": 0.1},
             "num_diffusion_steps": {"toy": 50},
             "Nsample": {"toy": 50},
             "Hsample": {"toy": steps}
@@ -60,6 +65,10 @@ class MBDScore:
         # Initialize environment parameters
         self._setup_environment()
         self._setup_diffusion_params()
+
+        self.g_E = None
+        self.g_E_mean = None
+        self.g_A = None
 
     def _setup_environment(self):
         """Initialize the environment and related parameters."""
@@ -102,7 +111,6 @@ class MBDScore:
         # y_bar_N = y / torch.sqrt(alpha_bar_N)
         return y
 
-
     def _reverse_diffusion_step(self, i, Ybar_i):
         """
         Single step of the reverse diffusion process.
@@ -131,13 +139,13 @@ class MBDScore:
         #     rews, q = self._rollout(self.state_init, actions)
         #     rewss.append(rews)
 
-        actions = Y0s.numpy()
+        actions = Y0s[..., self.state_dim:]
         if isinstance(self.state_init, np.ndarray):
             states0 = np.repeat(self.state_init[None, ...], self.Nsample, axis=0)
         else:
             states0 = np.array([self.state_init] * self.Nsample, dtype=np.float32)
-        rewss, _ = self._rollout_batch(states0, actions)
 
+        rewss, _ = self._rollout_batch(states0, actions)
         rews = torch.tensor(np.mean(rewss, axis=-1), device=self.device)
         rew_std = rews.std()
         rew_std = torch.where(rew_std < 1e-4, torch.tensor(1.0, device=self.device), rew_std)
@@ -187,7 +195,7 @@ class MBDScore:
         rews = []
         states = [state]
         for t in range(actions.shape[0]):
-            state, rew, done, _ = self.env.step(state, actions[t])
+            state, rew, done, _ = self.env.step(actions[t])
             rews.append(rew)
             states.append(state)
             if done:
@@ -203,7 +211,7 @@ class MBDScore:
         states = [states0.copy()]
         cur_states = states0.copy()
         done_mask = np.zeros(B, dtype=bool)
-        for t in range(T):
+        for t in range(self.Hsample):
             a_t = actions[:, t]  # a_t: [B, Nu]
             if hasattr(self.env, "batch_step"):
                 next_states, r_t, done_t, _ = self.env.batch_step(cur_states, a_t)
@@ -220,8 +228,8 @@ class MBDScore:
                     r_t[b] = rb
                     done_t[b] = db
             next_states = np.asarray(next_states)
-            r_t_reduced = np.mean(r_t, axis=(1, 2))
-            rews[~done_mask, t] = r_t_reduced[~done_mask]
+            # r_t_reduced = np.mean(r_t, axis=(1, 2))
+            rews[~done_mask, t] = r_t[~done_mask]
             done_mask |= done_t
             cur_states = next_states
             states.append(cur_states.copy())
@@ -245,24 +253,20 @@ class MBDScore:
             Ye = Ye.unsqueeze(1)
         if Ya.dim() == 1:
             Ya = Ya.unsqueeze(1)
-        Y_cat = torch.cat([Ye, Ya], dim=0)
 
         with torch.no_grad():
             if self.use_reward_score:
-                g_cat = self._logp_change_reward(Y_cat)
-                # g_E = self._logp_change_reward(Ye)
-                # g_A = self._logp_change_reward(Ya)
+                if self.g_E is None:
+                    self.g_E = self._logp_change_reward(Ye)
+                self.g_A = self._logp_change_reward(Ya)
             else:
-                g_cat = self._estimate_logp_change(Y_cat)
-                # g_E = self._logp_change_reward(Ye)
-                # g_A = self._logp_change_reward(Ya)
+                if self.g_E is None:
+                    self.g_E = self._estimate_logp_change(Ye)
+                self.g_A = self._estimate_logp_change(Ya)
 
-        g_E, g_A = torch.split(g_cat, [Ye.size(0), Ya.size(0)], dim=0)
-        g_E_mean = g_E.mean()
-        # print(f"[compute_reward] g_E mean {g_E.mean().item():.4f}")
-        # print(f"[compute_reward] g_A mean {g_A.mean().item():.4f}")
-        # print(f"[compute_reward] final mean reward for each agent = {(g_E_mean - g_A).cpu().numpy().mean().round(4)}")
-        return (g_E_mean - g_A).cpu().numpy()
+        if self.g_E_mean is None:
+            self.g_E_mean = self.g_E.mean()
+        return self.g_E_mean - self.g_A
 
     def _estimate_logp_change(self, y0):
         B, D = y0.shape

@@ -258,6 +258,16 @@ class Trainer:
 
                     kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
                     self.kl_history.append(kl_ep)
+                if self.method in ("modril"):
+                    logp_E_expert = self.trainer.mbd.g_E_mean.cpu().numpy()  # shape (N,)
+                    logp_A_expert = self.trainer.mbd.g_A.cpu().numpy()
+
+                    mean_logpE = float(np.mean(logp_E_expert))
+                    mean_logpA = float(np.mean(logp_A_expert))
+                    self.logpE_history.append(mean_logpE)
+                    self.logpA_history.append(mean_logpA)
+                    kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
+                    self.kl_history.append(kl_ep)
                 elif self.method in ("gail", "drail"):
                     expert_s_t = self.expert_s
                     expert_a_t = self.expert_a
@@ -477,7 +487,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'gail')
+    tr = Trainer('sine', 'fm')
     tr.runner()
-    tr.plot(5)
+    tr.plot(10)
     tr.plot_metrics()

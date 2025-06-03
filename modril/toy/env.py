@@ -141,7 +141,7 @@ class Environment1DStatic:
         errors = predicted_y - true_y  # shape=(B,)
         rewards = - (errors ** 2)  # shape=(B,)
 
-        dones = np.ones(B, dtype=bool)
+        dones = np.zeros(B, dtype=bool)
         next_states = np.random.choice(self.x_norm.reshape(-1), size=B)
         info = {"true_y": true_y, "error": errors}
         return next_states.astype(np.float32), rewards.astype(np.float32), dones, info
