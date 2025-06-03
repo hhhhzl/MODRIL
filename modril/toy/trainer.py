@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 import datetime
-from modril.toy.env import Environment
-from modril.toy.utils import norm_state
+from modril.toy.utils import dynamic_convert
 from modril.toy.policy import PPO
-from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD
-from modril.toy.discriminators import FFJORDDensity, FlowMatching
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
+from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
 from modril.toy.toy_tasks import *
 import random
+
 
 seed = 1234
 random.seed(seed)
@@ -43,7 +43,7 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=1000,
+            n_episode=2000,
             steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
@@ -107,6 +107,8 @@ class Trainer:
         self.logpE_history = []
         self.logpA_history = []
         self.kl_history = []
+        self.all_states = []
+        self.all_actions = []
 
     def _init_trainer(self, method, **kwargs):
         if method == 'gail':
@@ -120,15 +122,17 @@ class Trainer:
         elif method in ('ffjord', 'fm'):
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
                                      lr=1e-3)
+        elif method == 'ebgail':
+            self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
-            self.trainer = GAIL_MBD(self.agent, env=self.task.env, env_name="toy", device=self.device, steps=self.steps)
+            self.trainer = GAIL_MBD(self.agent, env=self.task.env, state_dim=self.state_dim, action_dim=self.action_dim, env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
     def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-4, clip_grad=1.0,
                           log_interval=500):
         """
-        method: "ffjord" or "fm"
+        method: "ffjord" or "fm" or "DEEN"
         """
         if not torch.is_tensor(data):
             data_t = torch.tensor(data, dtype=torch.float32, device=self.device)
@@ -148,8 +152,10 @@ class Trainer:
 
             if method == "ffjord":
                 loss = estimator.nll(x0)
-            else:  # fm
+            elif method == "fm":  # fm
                 loss = estimator.c_fm_loss(s, a, dequant_std=0.02)
+            else:
+                loss = estimator.deen_loss(x0)
 
             opt.zero_grad()
             loss.backward()
@@ -175,16 +181,31 @@ class Trainer:
 
     def runner(self):
         # pretrain for FFJORD
-        if self.pretrain and (self.method == "ffjord" or self.method == "fm"):
+        if (self.pretrain and (self.method == "ffjord" or self.method == "fm")) or self.method == 'ebgail':
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
-            density_E = self._pretrain_density(
-                self.method,
-                FFJORDDensity(self.state_dim + self.action_dim).to(
-                    self.device) if self.method == "ffjord" else FlowMatching(self.state_dim, self.action_dim,
-                                                                              self.device).to(self.device),
-                xs_E_full,
-                int(self.n_episode * self.steps / 100) if self.method == "ffjord" else 100000
-            )
+            if self.method == "ffjord":
+                density_E = self._pretrain_density(
+                    self.method,
+                    FFJORDDensity(self.state_dim + self.action_dim).to(self.device),
+                    xs_E_full,
+                    int(self.n_episode * self.steps / 100)
+                )
+            elif self.method == "fm":
+                density_E = self._pretrain_density(
+                    self.method,
+                    FlowMatching(self.state_dim, self.action_dim, self.device).to(self.device),
+                    xs_E_full,
+                    30000
+                )
+            elif self.method == 'ebgail':
+                density_E = self._pretrain_density(
+                    self.method,
+                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(self.device),
+                    xs_E_full,
+                    int(self.n_episode * self.steps / 10)
+                )
+            else:
+                raise
             self.trainer.E = density_E
 
         # training loop
@@ -198,7 +219,7 @@ class Trainer:
                 env_rewards = []
                 for step in range(self.steps):
                     action = self.agent.take_action(state)
-                    next_state, reward, done, info = self.env.step(state, action)
+                    next_state, reward, done, info = self.env.step(action)
                     state_list.append(state)
                     action_list.append(action)
                     next_state_list.append(next_state)
@@ -237,6 +258,16 @@ class Trainer:
 
                     kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
                     self.kl_history.append(kl_ep)
+                if self.method in ("modril"):
+                    logp_E_expert = self.trainer.mbd.g_E_mean.cpu().numpy()  # shape (N,)
+                    logp_A_expert = self.trainer.mbd.g_A.cpu().numpy()
+
+                    mean_logpE = float(np.mean(logp_E_expert))
+                    mean_logpA = float(np.mean(logp_A_expert))
+                    self.logpE_history.append(mean_logpE)
+                    self.logpA_history.append(mean_logpA)
+                    kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
+                    self.kl_history.append(kl_ep)
                 elif self.method in ("gail", "drail"):
                     expert_s_t = self.expert_s
                     expert_a_t = self.expert_a
@@ -258,15 +289,31 @@ class Trainer:
                     self.logpA_history.append(None)
                     self.kl_history.append(None)
 
+                self.all_states.append(state_list)
+                self.all_actions.append(action_list)
                 pbar.update(1)
-        self.state_list = state_list
-        self.action_list = action_list
 
-    def plot(self):
+    def plot(self, K=5):
         s_gt = np.array(self.expert_s)  # ground‐truth states
         a_gt = np.array(self.expert_a)  # ground‐truth actions
-        s_pred = np.array(self.state_list)  # pred states
-        a_pred = np.array(self.action_list)  # pred actions
+
+        last_states = self.all_states[-K:]
+        last_actions = self.all_actions[-K:]
+
+        flat_states = []
+        flat_actions = []
+        for ep_states, ep_actions in zip(last_states, last_actions):
+            for s in ep_states:
+                arrs = np.asarray(s, dtype=np.float32).reshape(-1)
+                arrs = arrs.reshape(self.state_dim)
+                flat_states.append(arrs)
+            for a in ep_actions:
+                arra = np.asarray(a, dtype=np.float32).reshape(-1)
+                arra = arra.reshape(self.action_dim)
+                flat_actions.append(arra)
+
+        s_pred = np.stack(flat_states, axis=0)
+        a_pred = np.stack(flat_actions, axis=0)  # pred actions
 
         if s_gt.ndim == 1:
             s_gt = s_gt.reshape(-1, 1)
@@ -440,7 +487,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'fm')
+    tr = Trainer('sine', 'modril')
     tr.runner()
-    tr.plot()
+    tr.plot(10)
     tr.plot_metrics()

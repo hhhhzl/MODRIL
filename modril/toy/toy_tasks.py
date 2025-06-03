@@ -1,6 +1,6 @@
 import numpy as np
-from modril.toy.utils import normalize
-from modril.toy.env import Environment, Environment2D
+from modril.toy.utils import normalize, sample_expert_ground_truth
+from modril.toy.env import Environment1DStatic, Environment2D, Environment1DDynamic
 
 
 # Function/task abstraction
@@ -22,15 +22,19 @@ class Sine1D(TaskBase):
     Single-frequency sine: y = A * sin(ω x + φ) + noise
     """
 
-    def __init__(self, amplitude=1.0, freq=0.1, scale=2.0, phase=0.0, noise_std=0.05, n_points=1000):
-        x = np.linspace(0, 10, n_points)[:, None]
+    def __init__(self, amplitude=1.0, freq=0.1, scale=2.0, phase=0.0, noise_std=0.05, n_points=1000, split=20):
+        # x = np.linspace(0, 10, n_points)[:, None]
+        x_torch = sample_expert_ground_truth(n_points, 0, 10, split)
+        x = x_torch.unsqueeze(-1).numpy()
+
         y = amplitude * np.sin(scale * freq * np.pi * x + phase)[:, 0]
         y = y + np.random.randn(n_points) * noise_std
         s_norm, self.s_mu, self.s_std = normalize(x)
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.x = x
+        self.env = Environment1DDynamic(np.hstack([self.expert_s, self.expert_a]), self.x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -57,7 +61,7 @@ class MultiSine1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -84,7 +88,7 @@ class GaussSine1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -111,7 +115,7 @@ class Poly1D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
