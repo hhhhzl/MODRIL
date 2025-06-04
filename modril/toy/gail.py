@@ -44,7 +44,7 @@ class GAIL:
         # agent_s maybe list of scalars（for static environment），also list of 1D vector（dynamic environment）
         # so reshape to (state_dim,)：
         agent_s_arr = dynamic_convert(agent_s, self.state_dim)
-        agent_a_arr = dynamic_convert(agent_a, self.state_dim)  # (batch, action_dim)
+        agent_a_arr = dynamic_convert(agent_a, self.action_dim)  # (batch, action_dim)
         agent_states = torch.from_numpy(agent_s_arr).to(self.device)  # (batch, state_dim)
         agent_actions = torch.from_numpy(agent_a_arr).to(self.device)  # (batch, action_dim)
 
@@ -93,7 +93,7 @@ class DRAIL:
         if expert_a_arr.ndim == 1:
             expert_a_arr = expert_a_arr.reshape(-1, 1)
 
-        agent_s_arr, agent_a_arr = dynamic_convert(agent_s, self.state_dim), dynamic_convert(agent_a, self.state_dim)
+        agent_s_arr, agent_a_arr = dynamic_convert(agent_s, self.state_dim), dynamic_convert(agent_a, self.action_dim)
         if agent_s_arr.ndim == 1:
             agent_s_arr = agent_s_arr.reshape(-1, 1)
         if agent_a_arr.ndim == 1:
@@ -203,7 +203,7 @@ class GAIL_Flow:
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         agent_s_np = dynamic_convert(agent_s, self.state_dim)
-        agent_a_np = dynamic_convert(agent_a, self.state_dim)
+        agent_a_np = dynamic_convert(agent_a, self.action_dim)
         s_A = torch.from_numpy(agent_s_np).to(self.device)  # shape: [B] or [B, state_dim]
         a_A = torch.from_numpy(agent_a_np).to(self.device)
 
@@ -250,7 +250,7 @@ class EnergyGAIL:
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         agent_s_np = dynamic_convert(agent_s, self.state_dim)
-        agent_a_np = dynamic_convert(agent_a, self.state_dim)
+        agent_a_np = dynamic_convert(agent_a, self.action_dim)
         if agent_s_np.ndim == 1:
             agent_s_np = agent_s_np.reshape(-1, 1)
         if agent_a_np.ndim == 1:
@@ -310,10 +310,10 @@ class GAIL_MBD:
             expert_a_arr = expert_a_arr.reshape(-1, 1)
 
         # random window to align with agent
-        # start = np.random.randint(0, len(expert_s) - self.steps + 1)
-        # idx = slice(start, start + self.steps)
+        start = np.random.randint(0, len(expert_s) - self.steps + 1)
+        idx = slice(start, start + self.steps)
 
-        xs_E_arr = np.concatenate([expert_s_arr, expert_a_arr], axis=1)  # shape = (N, 2)
+        xs_E_arr = np.concatenate([expert_s_arr[idx], expert_a_arr[idx]], axis=1)  # shape = (N, 2)
         xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
 
         agent_s_arr = dynamic_convert(agent_s, self.state_dim)

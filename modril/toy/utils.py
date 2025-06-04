@@ -3,7 +3,6 @@ import math
 import numpy as np
 import torch.nn as nn
 
-
 def normalize(x):
     mu = x.mean(axis=0, keepdims=True)
     std = x.std(axis=0, keepdims=True).clip(min=1e-6)
@@ -74,3 +73,26 @@ def dynamic_convert(array, dim):
             arr = arr.reshape(dim)
             state_list.append(arr)
         return np.stack(state_list, axis=0)
+
+
+def create_env(task_name, env_type, expert_s, expert_a, state_dim, action_dim, x=None):
+    from modril.toy.env import Environment1DStatic, Environment2DStatic, Environment1DDynamic, Environment2DDynamic
+    # 1D
+    if task_name in ('sine', 'multi_sine', 'gauss_sine', 'poly'):
+        if env_type == "static":
+            return Environment1DStatic(np.hstack([expert_s, expert_a]), x, state_dim, action_dim)
+        elif env_type == 'dynamic':
+            return Environment1DDynamic(np.hstack([expert_s, expert_a]), x, state_dim, action_dim)
+        else:
+            return None
+    # 2D
+    elif task_name in ('gaussian_hill', 'mexican_hat', 'saddle', 'ripple', 'bimodal_gaussian'):
+        if env_type == "static":
+            return Environment2DStatic(expert_s, expert_a, state_dim, action_dim)
+        elif env_type == 'dynamic':
+            return Environment2DDynamic(expert_s, expert_a, state_dim, action_dim)
+        else:
+            return None
+    else:
+        return None
+

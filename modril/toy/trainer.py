@@ -5,8 +5,8 @@ from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
 from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
 from modril.toy.toy_tasks import *
+from modril.toy.utils import create_env
 import random
-
 
 seed = 1234
 random.seed(seed)
@@ -40,7 +40,7 @@ class Trainer:
             function,
             method,
             n_episode=2000,
-            steps=100,
+            steps=200,
             hidden_dim=256,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -50,6 +50,7 @@ class Trainer:
             gamma=0.98,
             lr_d=1e-3,
             pretrain=True,
+            env_type='dynamic',
             **kwargs
     ):
         self.state_list = None
@@ -68,11 +69,22 @@ class Trainer:
             self.expert_a = torch.tensor(a_np, dtype=torch.float32, device=self.device)
         else:
             self.expert_a = None
-        self.env = getattr(self.task, 'env', None)
+
         # dims
         self.state_dim = self.task.state_dim
         self.action_dim = self.task.action_dim
         self.pretrain = pretrain
+
+        self.env = create_env(
+            self.task_name,
+            env_type,
+            self.task.expert_s,
+            self.task.expert_a,
+            self.state_dim,
+            self.action_dim,
+            getattr(self.task, 'x', None)
+        )
+
         # config
         self.n_episode = n_episode
         self.steps = steps
@@ -121,7 +133,8 @@ class Trainer:
         elif method == 'ebgail':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
-            self.trainer = GAIL_MBD(self.agent, env=self.task.env, state_dim=self.state_dim, action_dim=self.action_dim, env_name="toy", device=self.device, steps=self.steps)
+            self.trainer = GAIL_MBD(self.agent, env=self.env, state_dim=self.state_dim, action_dim=self.action_dim,
+                                    env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
@@ -171,8 +184,6 @@ class Trainer:
         estimator.eval()
         for p in estimator.parameters():
             p.requires_grad_(False)
-
-        print("Density_E Pretrain Done\n")
         return estimator
 
     def runner(self):
@@ -196,9 +207,10 @@ class Trainer:
             elif self.method == 'ebgail':
                 density_E = self._pretrain_density(
                     self.method,
-                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(self.device),
+                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(
+                        self.device),
                     xs_E_full,
-                    int(self.n_episode * self.steps / 10)
+                    10000
                 )
             else:
                 raise
@@ -254,7 +266,7 @@ class Trainer:
 
                     kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
                     self.kl_history.append(kl_ep)
-                if self.method in ("modril"):
+                elif self.method in "modril":
                     logp_E_expert = self.trainer.mbd.g_E.cpu().numpy()  # shape (N,)
                     logp_A_expert = self.trainer.mbd.g_A.cpu().numpy()
 
@@ -434,7 +446,6 @@ class Trainer:
         if any(v is not None for v in self.logpE_history):
             logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
             logpA_arr = np.array([v if v is not None else np.nan for v in self.logpA_history])
-            print(logpA_arr)
 
             logpE_ds = logpE_arr[idx_ds]
             logpA_ds = logpA_arr[idx_ds]
@@ -443,18 +454,18 @@ class Trainer:
             plt.plot(
                 ep_ds,
                 logpE_ds,
-                label='mean G_E (expert)',
+                label='mean score (expert)',
                 color='C1'
             )
             plt.plot(
                 ep_ds,
                 logpA_ds,
-                label='mean G_A (agent)',
+                label='mean score (agent)',
                 color='C2'
             )
             plt.xlabel('Episode')
             plt.ylabel('log p')
-            plt.title(f'G_E vs G_A: ({self.task_name}) - ({self.method})')
+            plt.title(f'score_E vs score_A: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
@@ -483,7 +494,11 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('multi_sine', 'drail')
+    tr = Trainer(
+        'sine',
+        'modril',
+        env_type='static',
+    )
     tr.runner()
     tr.plot(10)
     tr.plot_metrics()

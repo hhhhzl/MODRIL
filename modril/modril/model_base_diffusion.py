@@ -53,8 +53,8 @@ class MBDScore:
         # Recommended parameters for specific environments
         self.recommended_params = {
             "temp_sample": {"toy": 0.1},
-            "num_diffusion_steps": {"toy": 100},
-            "Nsample": {"toy": 100},
+            "num_diffusion_steps": {"toy": 128},
+            "Nsample": {"toy": 128},
             "Hsample": {"toy": steps}
         }
 

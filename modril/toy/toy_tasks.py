@@ -1,6 +1,5 @@
 import numpy as np
 from modril.toy.utils import normalize, sample_expert_ground_truth
-from modril.toy.env import Environment1DStatic, Environment2D, Environment1DDynamic
 
 
 # Function/task abstraction
@@ -34,7 +33,6 @@ class Sine1D(TaskBase):
         self.expert_s = s_norm
         self.expert_a = a_norm
         self.x = x
-        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), self.x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):
@@ -53,15 +51,18 @@ class MultiSine1D(TaskBase):
     Multi-frequency sine: y = sin(x) + 0.5 sin(3x) + noise
     """
 
-    def __init__(self, noise_std=0.05, n_points=1000):
-        x = np.linspace(0, 10, n_points)[:, None]
+    def __init__(self, noise_std=0.05, n_points=1000, split=20):
+        # x = np.linspace(0, 10, n_points)[:, None]
+
+        x_torch = sample_expert_ground_truth(n_points, 0, 10, split)
+        x = x_torch.unsqueeze(-1).numpy()
         y = np.sin(x)[:, 0] + 0.5 * np.sin(3 * x)[:, 0]
         y = y + np.random.randn(n_points) * noise_std
         s_norm, self.s_mu, self.s_std = normalize(x)
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.x = x
 
     @property
     def state_dim(self):
@@ -80,15 +81,17 @@ class GaussSine1D(TaskBase):
     Gaussian-envelope sine: y = exp(-x^2) * sin(2x) + noise
     """
 
-    def __init__(self, noise_std=0.02, n_points=1000, range_xy=3.0):
-        x = np.linspace(-range_xy, range_xy, n_points)[:, None]
+    def __init__(self, noise_std=0.02, n_points=1000, range_xy=3.0, split=20):
+        # x = np.linspace(-range_xy, range_xy, n_points)[:, None]
+        x_torch = sample_expert_ground_truth(n_points, -range_xy, range_xy, split)
+        x = x_torch.unsqueeze(-1).numpy()
         y = np.exp(-x ** 2)[:, 0] * np.sin(2 * x)[:, 0]
         y = y + np.random.randn(n_points) * noise_std
         s_norm, self.s_mu, self.s_std = normalize(x)
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.x = x
 
     @property
     def state_dim(self):
@@ -107,15 +110,17 @@ class Poly1D(TaskBase):
     Polynomial: y = 0.1 x^3 - 0.5 x + noise
     """
 
-    def __init__(self, noise_std=0.05, n_points=1000, range_xy=3.0):
-        x = np.linspace(-range_xy, range_xy, n_points)[:, None]
+    def __init__(self, noise_std=0.05, n_points=1000, range_xy=3.0, split=20):
+        # x = np.linspace(-range_xy, range_xy, n_points)[:, None]
+        x_torch = sample_expert_ground_truth(n_points, -range_xy, range_xy, split)
+        x = x_torch.unsqueeze(-1).numpy()
         y = 0.1 * x[:, 0] ** 3 - 0.5 * x[:, 0]
         y = y + np.random.randn(n_points) * noise_std
         s_norm, self.s_mu, self.s_std = normalize(x)
         a_norm, self.a_mu, self.a_std = normalize(y[:, None])
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), x, self.state_dim, self.action_dim)
+        self.x = x
 
     @property
     def state_dim(self):
@@ -134,9 +139,13 @@ class GaussianHill2D(TaskBase):
     2D surface: z = exp(- (x^2 + y^2) )
     """
 
-    def __init__(self, nx=100, ny=100, range_xy=3.0):
-        xs = np.linspace(-range_xy, range_xy, nx)
+    def __init__(self, nx=100, ny=100, range_xy=3.0, split=20):
+        xs = np.linspace(-range_xy, range_xy, nx) # better to virtualize
         ys = np.linspace(-range_xy, range_xy, ny)
+        # xs_torch = sample_expert_ground_truth(nx, -range_xy, range_xy, split)
+        # xs = xs_torch.unsqueeze(-1).numpy()
+        # ys_torch = sample_expert_ground_truth(ny, -range_xy, range_xy, split)
+        # ys = ys_torch.unsqueeze(-1).numpy()
         X, Y = np.meshgrid(xs, ys)
         Z = np.exp(-(X ** 2 + Y ** 2))
         pts = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=1)
@@ -146,7 +155,7 @@ class GaussianHill2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
+
 
     @property
     def state_dim(self):
@@ -178,7 +187,7 @@ class MexicanHat2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
+
 
     @property
     def state_dim(self):
@@ -209,7 +218,7 @@ class Saddle2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
+
 
     @property
     def state_dim(self):
@@ -240,7 +249,7 @@ class SinusoidalRipple2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
+
 
     @property
     def state_dim(self):
@@ -273,7 +282,6 @@ class BimodalGaussian2D(TaskBase):
         a_norm, self.a_mu, self.a_std = normalize(a)
         self.expert_s = s_norm
         self.expert_a = a_norm
-        self.env = Environment2D(self.expert_s, self.expert_a, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):

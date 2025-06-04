@@ -35,8 +35,9 @@ class PPO:
         else:
             state_np = np.array(state, dtype=np.float32)
 
-        state_tensor = torch.from_numpy(state_np).unsqueeze(0).to(self.device)  # shape = (1, state_dim)
+        state_tensor = torch.from_numpy(state_np).unsqueeze(0).to(self.device)
         mean, log_std = self.actor(state_tensor)
+
         log_std = log_std.clamp(-4, 1)
         std = log_std.exp()
         dist = torch.distributions.Normal(mean, std)
@@ -49,7 +50,7 @@ class PPO:
     def update(self, transition_dict):
         states_np = dynamic_convert(transition_dict['states'], self.state_dim)  # (batch, state_dim)
         next_states_np = dynamic_convert(transition_dict['next_states'], self.state_dim)  # (batch, state_dim)
-        actions_np = dynamic_convert(transition_dict['actions'], self.state_dim)
+        actions_np = dynamic_convert(transition_dict['actions'], self.action_dim)
         rewards_np = np.array(transition_dict['rewards'], dtype=np.float32)
         dones_np = np.array(transition_dict['dones'], dtype=np.float32)
 
