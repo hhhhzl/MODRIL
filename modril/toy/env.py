@@ -9,7 +9,7 @@ class Environment1DDynamic:
             x_raw: np.ndarray,
             state_dim: int,
             action_dim: int,
-            dt: float = 0.05,
+            dt: float = 0.1,
             horizon: int = 100
     ):
         assert state_dim == 1 and action_dim == 1

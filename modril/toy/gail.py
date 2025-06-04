@@ -299,6 +299,7 @@ class GAIL_MBD:
         self.device = device
         self.state_dim = state_dim
         self.action_dim = action_dim
+        self.steps = steps
 
     def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
         expert_s_arr = np.asarray(expert_s, dtype=np.float32)
@@ -307,6 +308,11 @@ class GAIL_MBD:
             expert_s_arr = expert_s_arr.reshape(-1, 1)
         if expert_a_arr.ndim == 1:
             expert_a_arr = expert_a_arr.reshape(-1, 1)
+
+        # random window to align with agent
+        # start = np.random.randint(0, len(expert_s) - self.steps + 1)
+        # idx = slice(start, start + self.steps)
+
         xs_E_arr = np.concatenate([expert_s_arr, expert_a_arr], axis=1)  # shape = (N, 2)
         xs_E = torch.tensor(xs_E_arr, dtype=torch.float32, device=self.device)
 
@@ -320,7 +326,11 @@ class GAIL_MBD:
         xs_A = torch.tensor(xs_A_arr, dtype=torch.float32, device=self.device)
 
         rewards = self.mbd.compute_reward(xs_E, xs_A)
+
+        scale = 4.0
+        clip = 10.0
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        rewards = np.clip(rewards * scale, -clip, clip)
 
         self.agent.update(dict(
             states=agent_s,

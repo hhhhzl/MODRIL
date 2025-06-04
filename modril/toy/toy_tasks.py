@@ -34,7 +34,7 @@ class Sine1D(TaskBase):
         self.expert_s = s_norm
         self.expert_a = a_norm
         self.x = x
-        self.env = Environment1DDynamic(np.hstack([self.expert_s, self.expert_a]), self.x, self.state_dim, self.action_dim)
+        self.env = Environment1DStatic(np.hstack([self.expert_s, self.expert_a]), self.x, self.state_dim, self.action_dim)
 
     @property
     def state_dim(self):

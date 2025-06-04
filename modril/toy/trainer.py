@@ -1,10 +1,6 @@
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import wandb
-import datetime
-from modril.toy.utils import dynamic_convert
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
 from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
@@ -45,7 +41,7 @@ class Trainer:
             method,
             n_episode=2000,
             steps=100,
-            hidden_dim=128,
+            hidden_dim=256,
             actor_lr=1e-3,
             critic_lr=1e-2,
             lmbda=0.95,
@@ -259,7 +255,7 @@ class Trainer:
                     kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
                     self.kl_history.append(kl_ep)
                 if self.method in ("modril"):
-                    logp_E_expert = self.trainer.mbd.g_E_mean.cpu().numpy()  # shape (N,)
+                    logp_E_expert = self.trainer.mbd.g_E.cpu().numpy()  # shape (N,)
                     logp_A_expert = self.trainer.mbd.g_A.cpu().numpy()
 
                     mean_logpE = float(np.mean(logp_E_expert))
@@ -403,7 +399,6 @@ class Trainer:
 
         ep_ds = episodes_full[idx_ds]
 
-        # —— 1. Env Reward + bound ——
         reward_mean = np.array(self.reward_history)
         reward_min = np.array(self.reward_min_history)
         reward_max = np.array(self.reward_max_history)
@@ -439,6 +434,7 @@ class Trainer:
         if any(v is not None for v in self.logpE_history):
             logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
             logpA_arr = np.array([v if v is not None else np.nan for v in self.logpA_history])
+            print(logpA_arr)
 
             logpE_ds = logpE_arr[idx_ds]
             logpA_ds = logpA_arr[idx_ds]
@@ -447,18 +443,18 @@ class Trainer:
             plt.plot(
                 ep_ds,
                 logpE_ds,
-                label='mean log p_E (expert)',
+                label='mean G_E (expert)',
                 color='C1'
             )
             plt.plot(
                 ep_ds,
                 logpA_ds,
-                label='mean log p_A (agent)',
+                label='mean G_A (agent)',
                 color='C2'
             )
             plt.xlabel('Episode')
             plt.ylabel('log p')
-            plt.title(f'log p_E vs log p_A: ({self.task_name}) - ({self.method})')
+            plt.title(f'G_E vs G_A: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
@@ -477,8 +473,8 @@ class Trainer:
                 color='C3'
             )
             plt.xlabel('Episode')
-            plt.ylabel('Surrogate Reward')
-            plt.title(f'Discriminator Surrogate: ({self.task_name}) - ({self.method})')
+            plt.ylabel('GE-GA')
+            plt.title(f'GE-GA: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
@@ -487,7 +483,7 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'modril')
+    tr = Trainer('multi_sine', 'drail')
     tr.runner()
     tr.plot(10)
     tr.plot_metrics()
