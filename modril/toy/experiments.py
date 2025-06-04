@@ -1,7 +1,7 @@
 import argparse
 import os
 import sys
-import time
+from time import time
 import datetime
 import itertools
 import torch
@@ -30,21 +30,30 @@ class Experiment:
 
         self.base_results_dir = args.results_dir
         os.makedirs(self.base_results_dir, exist_ok=True)
+        self.experiment_time = 0
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.experiment_dir = os.path.join(self.base_results_dir, timestamp)
         os.makedirs(self.experiment_dir, exist_ok=True)
 
+        params_path = os.path.join(self.experiment_dir, "experiments_params.txt")
+        with open(params_path, "w", encoding="utf-8") as ef:
+            ef.write("CMD ARGS：\n")
+            for k, v in vars(args).items():
+                ef.write(f"  {k}: {v}\n")
+            ef.write(f"  experiment numbers: {len(vars(args)['functions']) * len(vars(args)['methods']) * len(vars(args)['env_types'])}\n")
+        ef.close()
+
     def _run_single(self, func_method_tuple):
-        function, env_type, method = func_method_tuple
+        env_type, function, method = func_method_tuple
 
-        task_dir = os.path.join(self.experiment_dir, function)
-        os.makedirs(task_dir, exist_ok=True)
-
-        env_dir = os.path.join(task_dir, f'{env_type}_env')
+        env_dir = os.path.join(self.experiment_dir, f'{env_type}_env')
         os.makedirs(env_dir, exist_ok=True)
 
-        method_dir = os.path.join(env_dir, method)
+        task_dir = os.path.join(env_dir, function)
+        os.makedirs(task_dir, exist_ok=True)
+
+        method_dir = os.path.join(task_dir, method)
         if os.path.exists(method_dir):
             shutil.rmtree(method_dir)
         os.makedirs(method_dir, exist_ok=True)
@@ -68,8 +77,8 @@ class Experiment:
             )
             params_path = os.path.join(method_dir, "params.txt")
             with open(params_path, "w", encoding="utf-8") as f:
-                f.write(f"function = {function}\n")
                 f.write(f"env_type    = {env_type}\n")
+                f.write(f"function = {function}\n")
                 f.write(f"method   = {method}\n")
                 f.write(f"n_episode   = {self.n_episode}\n")
                 f.write(f"steps       = {self.steps}\n")
@@ -118,9 +127,10 @@ class Experiment:
         return f"Finished {function}-{env_type}-{method}"
 
     def run_all(self):
-        combos = list(itertools.product(self.functions, self.env_types, self.methods))
+        combos = list(itertools.product(self.env_types, self.functions, self.methods))
         print(f"======= {len(combos)} experiments，using {self.num_workers} workers ======>\n")
         results = []
+        start =time()
         with ProcessPoolExecutor(max_workers=self.num_workers) as executor:
             future_to_combo = {
                 executor.submit(self._run_single, combo): combo for combo in combos
@@ -133,12 +143,42 @@ class Experiment:
                     results.append(res)
                 except Exception as e:
                     print(f"[Error] Experiment {combo} error: {e}")
+        self.experiment_time = time() -start
+
+        params_path = os.path.join(self.experiment_dir, "experiments_params.txt")
+        with open(params_path, "a", encoding="utf-8") as ef:
+            ef.write(f"  experiment time cost: {self.experiment_time}\n")
+        ef.close()
 
         print("\nExperiments Done")
         return results
 
 
 def parse_args():
+    task_list = [
+        'sine',
+        'multi_sine',
+        'gauss_sine',
+        'poly',
+        'gaussian_hill',
+        'mexican_hat',
+        'saddle',
+        'ripple',
+        'bimodal_gaussian',
+    ]
+    method_list = [
+        "gail",
+        "drail",
+        "mine",
+        "nwj",
+        "ebgail",
+        # "ffjord", 
+        "fm",
+        # "modril"
+    ]
+    env_list = [
+
+    ]
     parser = argparse.ArgumentParser(
         description="Experiments."
     )
@@ -148,6 +188,8 @@ def parse_args():
         "-f",
         nargs="+",
         required=True,
+        default=task_list,
+        choices=task_list,
         help=""
     )
     parser.add_argument(
@@ -155,6 +197,8 @@ def parse_args():
         "-m",
         nargs="+",
         required=True,
+        default=method_list,
+        choices=method_list,
         help=""
     )
 
@@ -195,7 +239,7 @@ def parse_args():
         "-e",
         type=str,
         nargs="+",
-        default="dynamic",
+        default=["dynamic", "static"],
         choices=["dynamic", "static"],
         help="env type"
     )
