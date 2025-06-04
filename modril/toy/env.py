@@ -9,7 +9,7 @@ class Environment1DDynamic:
             x_raw: np.ndarray,
             state_dim: int,
             action_dim: int,
-            dt: float = 0.05,
+            dt: float = 0.1,
             horizon: int = 100
     ):
         assert state_dim == 1 and action_dim == 1
@@ -38,11 +38,11 @@ class Environment1DDynamic:
     def reset(self, batch_size: int = 1) -> np.ndarray:
         self.cur_step = 0
         states = np.random.choice(self.x_norm.reshape(-1), size=batch_size)
-        self.state = states.copy().astype(np.float32).reshape(-1)  # self.state 保存形状 = (batch_size,)
+        self.state = states.copy().astype(np.float32).reshape(-1)
         return self.state.copy()
 
     def step(self, predicted_y: np.ndarray):
-        a_arr = np.asarray(predicted_y, dtype=np.float32).reshape(-1)  # 形状 = (batch_size,)
+        a_arr = np.asarray(predicted_y, dtype=np.float32).reshape(-1)
         assert a_arr.ndim == 1 and a_arr.shape[0] == 1
         s_arr = self.state.reshape(-1)
         s_scalar = float(s_arr[0])
@@ -147,43 +147,165 @@ class Environment1DStatic:
         return next_states.astype(np.float32), rewards.astype(np.float32), dones, info
 
 
-class Environment2D:
+class Environment2DStatic:
     """
     2D surface toy environment.
     """
 
-    def __init__(self, s_norm: np.ndarray, a_norm: np.ndarray, state_dim: int, action_dim: int):
+    def __init__(self, s_norm: np.ndarray, a_norm: np.ndarray, state_dim: int, action_dim: int, horizon: int = 100):
         assert s_norm.ndim == 2 and s_norm.shape[1] == 2
         assert a_norm.ndim == 2 and a_norm.shape[1] == 1
         assert state_dim == 2 and action_dim == 1
 
-        self.s_norm = s_norm
-        self.a_norm = a_norm
+        self.s_norm = s_norm.astype(np.float32)  # (N, 2)
+        self.a_norm = a_norm.astype(np.float32)  # (N, 1)
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.num_states = self.s_norm.shape[0]
 
+        self.state = None
+        self.horizon = horizon
+        self.cur_step = 0
+
     def reset(self) -> np.ndarray:
         idx = np.random.randint(0, self.num_states)
-        return self.s_norm[idx].astype(np.float32)
+        self.state = self.s_norm[idx].copy()  # (2,)
+        return self.state.copy()
 
-    def step(self, state_norm: np.ndarray, pred_a_norm: np.ndarray):
-        state_norm = np.asarray(state_norm, dtype=np.float32).reshape(-1, self.state_dim)
-        pred_a_norm = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, self.action_dim)
-        assert not np.any(np.isnan(state_norm)), f"step(): inputs state_norm has NaN: {state_norm}"
-        assert not np.any(np.isnan(pred_a_norm)), f"step(): inputs pred_a_norm has NaN: {pred_a_norm}"
-        s_vec = state_norm[0]  # shape (2,)
-        a_pred = pred_a_norm[0]  # shape (1,)
-        diffs = self.s_norm - s_vec  # shape (N, 2)
-        dists = np.linalg.norm(diffs, axis=1)  # shape (N,)
-        idx = int(np.argmin(dists))
-        true_a_norm = self.a_norm[idx]  # shape (1,)
-        error = a_pred - true_a_norm  # shape (1,)
-        reward = - float(np.mean(error ** 2))
+    def _find_nearest_index(self, query_point: np.ndarray) -> int:
+        diffs = self.s_norm - query_point[None, :]  # (N, 2)
+        dists = np.linalg.norm(diffs, axis=1)  # (N,)
+        return int(np.argmin(dists))
+
+    def step(self, pred_a_norm: np.ndarray):
+        a_pred = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1)  # 形状 (1,)
+        a_scalar = float(a_pred[0])
+        s_vec = self.state.reshape(-1)  # (2,)
+        idx_current = self._find_nearest_index(s_vec)
+        true_a_norm = self.a_norm[idx_current]  # (1,)
+        true_scalar = float(true_a_norm[0])
+        error = a_scalar - true_scalar
+        reward = - (error ** 2)
         next_idx = np.random.randint(0, self.num_states)
-        next_state = self.s_norm[next_idx]  # shape (2,)
-        next_state = next_state.astype(np.float32)  # (2,)
-        true_a_norm = true_a_norm.astype(np.float32)  # (1,)
+        next_state = self.s_norm[next_idx].astype(np.float32)  # (2,)
+        self.state = next_state.copy()
+
+        self.cur_step += 1
         done = False
+        if self.cur_step >= self.horizon:
+            done = True
         info = {"true_a_norm": true_a_norm.copy()}
-        return next_state, reward, done, info
+        return next_state, float(reward), done, info
+
+    def batch_step(self, states_norm: np.ndarray, pred_a_norm: np.ndarray):
+        states = np.asarray(states_norm, dtype=np.float32).reshape(-1, 2)  # (B, 2)
+        preds = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, 1)  # (B, 1)
+        B = states.shape[0]
+        diffs = states[:, None, :] - self.s_norm[None, :, :]  # (B, N, 2)
+        dists = np.linalg.norm(diffs, axis=2)  # (B, N)
+        idxs_current = np.argmin(dists, axis=1)  # (B,)
+        true_a = self.a_norm[idxs_current]  # (B, 1)
+        true_scalars = true_a.reshape(-1)  # (B,)
+        errors = preds.reshape(-1) - true_scalars  # (B,)
+        rewards = - (errors ** 2)  # (B,)
+        next_idxs = np.random.randint(0, self.num_states, size=B)
+        next_states = self.s_norm[next_idxs].astype(np.float32)  # (B, 2)
+        dones = np.zeros(B, dtype=bool)
+        info = {"true_a_norm": true_a.copy()}  # (B, 1)
+        return next_states, rewards.astype(np.float32), dones, info
+
+
+class Environment2DDynamic:
+    def __init__(
+        self,
+        s_norm: np.ndarray,
+        a_norm: np.ndarray,
+        state_dim: int,
+        action_dim: int,
+        dt: float = 0.1,
+        horizon: int = 100
+    ):
+        assert state_dim == 2 and action_dim == 1
+
+        self.s_norm = s_norm.astype(np.float32)   # (N, 2)
+        self.a_norm = a_norm.astype(np.float32)   # (N, 1)
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+
+        self.num_states = self.s_norm.shape[0]
+        self.dt = dt
+        self.horizon = horizon
+
+        self.cur_step = 0
+        self.state = None
+
+    def _find_nearest_index(self, query_point: np.ndarray) -> int:
+        diffs = self.s_norm - query_point[None, :]
+        dists = np.linalg.norm(diffs, axis=1)
+        return int(np.argmin(dists))
+
+    def reset(self, batch_size: int = 1) -> np.ndarray:
+        self.cur_step = 0
+        idxs = np.random.randint(0, self.num_states, size=batch_size)
+        states = self.s_norm[idxs].astype(np.float32)   # shape = (batch_size, 2)
+        if batch_size == 1:
+            self.state = states[0].copy()               # (2,)
+            return self.state.copy()
+        else:
+            self.state = states[-1].copy()
+            return states
+
+    def step(self, pred_a_norm: np.ndarray):
+        a_pred = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1)   # (1,)
+        a_scalar = float(a_pred[0])
+        s_vec = self.state.reshape(-1)                                   # (2,)
+        idx_current = self._find_nearest_index(s_vec)
+        true_a_norm = self.a_norm[idx_current]                            # (1,)
+        true_scalar = float(true_a_norm[0])
+
+        error = a_scalar - true_scalar
+        reward = - (error ** 2)
+        next_continuous = s_vec + np.array([a_scalar * self.dt,
+                                            a_scalar * self.dt], dtype=np.float32)
+        next_continuous = np.clip(next_continuous, -1.0, 1.0)             # (2,)
+        idx_next = self._find_nearest_index(next_continuous)
+        next_state = self.s_norm[idx_next].astype(np.float32)             # (2,)
+        self.cur_step += 1
+        done = self.cur_step >= self.horizon
+        self.state = next_state.copy()
+        info = {"true_a_norm": true_a_norm.copy()}  # (1,)
+
+        return next_state, float(reward), done, info
+
+    def batch_step(self, states_norm: np.ndarray, pred_a_norm: np.ndarray):
+        states = np.asarray(states_norm, dtype=np.float32).reshape(-1, 2)   # (B,2)
+        preds = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, 1)   # (B,1)
+        B = states.shape[0]
+
+        diffs = states[:, None, :] - self.s_norm[None, :, :]               # (B,N,2)
+        dists = np.linalg.norm(diffs, axis=2)                              # (B,N)
+        idxs_current = np.argmin(dists, axis=1)                            # (B,)
+
+        true_a = self.a_norm[idxs_current]                                   # (B,1)
+        true_scalars = true_a.reshape(-1)                                    # (B,)
+
+        errors = preds.reshape(-1) - true_scalars                             # (B,)
+        rewards = - (errors ** 2)                                             # (B,)
+
+        move = preds.reshape(-1, 1) * self.dt                                 # (B,1)
+        moves_2d = np.concatenate([move, move], axis=1)                       # (B,2)
+        next_continuous = states + moves_2d                                    # (B,2)
+        next_continuous = np.clip(next_continuous, -1.0, 1.0)                  # (B,2)
+
+        diffs_next = next_continuous[:, None, :] - self.s_norm[None, :, :]     # (B,N,2)
+        dists_next = np.linalg.norm(diffs_next, axis=2)                        # (B,N)
+        idxs_next = np.argmin(dists_next, axis=1)                               # (B,)
+        next_states = self.s_norm[idxs_next].astype(np.float32)               # (B,2)
+
+        self.cur_step += 1
+        dones = np.zeros(B, dtype=bool)
+        if self.cur_step >= self.horizon:
+            dones[:] = True
+
+        info = {"true_a_norm": true_a.copy()}  # (B,1)
+        return next_states, rewards.astype(np.float32), dones, info

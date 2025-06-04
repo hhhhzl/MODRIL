@@ -1,24 +1,19 @@
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import wandb
-import datetime
-from modril.toy.utils import dynamic_convert
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
 from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
 from modril.toy.toy_tasks import *
+from modril.toy.utils import create_env
 import random
-
+from time import time
 
 seed = 1234
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
-
-import argparse
 
 
 # --- Trainer refactored --- #
@@ -43,7 +38,7 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=2000,
+            n_episode=1000,
             steps=100,
             hidden_dim=128,
             actor_lr=1e-3,
@@ -54,6 +49,7 @@ class Trainer:
             gamma=0.98,
             lr_d=1e-3,
             pretrain=True,
+            env_type='dynamic',
             **kwargs
     ):
         self.state_list = None
@@ -72,11 +68,22 @@ class Trainer:
             self.expert_a = torch.tensor(a_np, dtype=torch.float32, device=self.device)
         else:
             self.expert_a = None
-        self.env = getattr(self.task, 'env', None)
+
         # dims
         self.state_dim = self.task.state_dim
         self.action_dim = self.task.action_dim
         self.pretrain = pretrain
+
+        self.env = create_env(
+            self.task_name,
+            env_type,
+            self.task.expert_s,
+            self.task.expert_a,
+            self.state_dim,
+            self.action_dim,
+            getattr(self.task, 'x', None)
+        )
+
         # config
         self.n_episode = n_episode
         self.steps = steps
@@ -100,7 +107,6 @@ class Trainer:
 
         # for plot metrics
         self.reward_history = []
-        self.reward_history = []
         self.reward_min_history = []
         self.reward_max_history = []
 
@@ -109,6 +115,8 @@ class Trainer:
         self.kl_history = []
         self.all_states = []
         self.all_actions = []
+        self.last_k_rewards = []
+        self.run_time = 0
 
     def _init_trainer(self, method, **kwargs):
         if method == 'gail':
@@ -125,7 +133,8 @@ class Trainer:
         elif method == 'ebgail':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
-            self.trainer = GAIL_MBD(self.agent, env=self.task.env, state_dim=self.state_dim, action_dim=self.action_dim, env_name="toy", device=self.device, steps=self.steps)
+            self.trainer = GAIL_MBD(self.agent, env=self.env, state_dim=self.state_dim, action_dim=self.action_dim,
+                                    env_name="toy", device=self.device, steps=self.steps)
         else:
             raise ValueError(f"Unknown method {method}")
 
@@ -175,8 +184,6 @@ class Trainer:
         estimator.eval()
         for p in estimator.parameters():
             p.requires_grad_(False)
-
-        print("Density_E Pretrain Done\n")
         return estimator
 
     def runner(self):
@@ -200,9 +207,10 @@ class Trainer:
             elif self.method == 'ebgail':
                 density_E = self._pretrain_density(
                     self.method,
-                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(self.device),
+                    DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(
+                        self.device),
                     xs_E_full,
-                    int(self.n_episode * self.steps / 10)
+                    10000
                 )
             else:
                 raise
@@ -212,6 +220,8 @@ class Trainer:
         if self.env is None:
             print("No environment defined for this task; skipping runner.")
             return
+
+        start = time()
         with tqdm(total=self.n_episode, desc='Progress') as pbar:
             for ep in range(self.n_episode):
                 state = self.env.reset()
@@ -234,6 +244,9 @@ class Trainer:
                     action_list,
                     next_state_list
                 )
+
+                if ep >= self.n_episode - 10:
+                    self.last_k_rewards.append(env_rewards)
 
                 # for metrics plot
                 rewards_np = np.array(env_rewards, dtype=float)
@@ -258,8 +271,8 @@ class Trainer:
 
                     kl_ep = float(np.mean(logp_E_expert - logp_A_expert))
                     self.kl_history.append(kl_ep)
-                if self.method in ("modril"):
-                    logp_E_expert = self.trainer.mbd.g_E_mean.cpu().numpy()  # shape (N,)
+                elif self.method in "modril":
+                    logp_E_expert = self.trainer.mbd.g_E.cpu().numpy()  # shape (N,)
                     logp_A_expert = self.trainer.mbd.g_A.cpu().numpy()
 
                     mean_logpE = float(np.mean(logp_E_expert))
@@ -293,7 +306,9 @@ class Trainer:
                 self.all_actions.append(action_list)
                 pbar.update(1)
 
-    def plot(self, K=5):
+        self.run_time = time() - start
+
+    def plot(self, filepath=".", K=5):
         s_gt = np.array(self.expert_s)  # ground‐truth states
         a_gt = np.array(self.expert_a)  # ground‐truth actions
 
@@ -388,10 +403,9 @@ class Trainer:
 
         plt.legend(loc='best')
         plt.tight_layout()
-        plt.savefig('result.png', dpi=150)
-        plt.show()
+        plt.savefig(f'{filepath}/result.png', dpi=150)
 
-    def plot_metrics(self):
+    def plot_metrics(self, filepath="."):
         total_eps = len(self.reward_history)
         episodes_full = np.arange(1, total_eps + 1)
 
@@ -403,7 +417,6 @@ class Trainer:
 
         ep_ds = episodes_full[idx_ds]
 
-        # —— 1. Env Reward + bound ——
         reward_mean = np.array(self.reward_history)
         reward_min = np.array(self.reward_min_history)
         reward_max = np.array(self.reward_max_history)
@@ -433,8 +446,7 @@ class Trainer:
         plt.legend(loc='best')
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig('env_reward_with_bounds.png', dpi=150)
-        plt.show()
+        plt.savefig(f'{filepath}/rewards.png', dpi=150)
 
         if any(v is not None for v in self.logpE_history):
             logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
@@ -447,23 +459,22 @@ class Trainer:
             plt.plot(
                 ep_ds,
                 logpE_ds,
-                label='mean log p_E (expert)',
+                label='mean score (expert)',
                 color='C1'
             )
             plt.plot(
                 ep_ds,
                 logpA_ds,
-                label='mean log p_A (agent)',
+                label='mean score (agent)',
                 color='C2'
             )
             plt.xlabel('Episode')
             plt.ylabel('log p')
-            plt.title(f'log p_E vs log p_A: ({self.task_name}) - ({self.method})')
+            plt.title(f'score_E vs score_A: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig('logpE_logpA_curve.png', dpi=150)
-            plt.show()
+            plt.savefig(f'{filepath}/scores.png', dpi=150)
 
         if any(v is not None for v in self.kl_history):
             kl_arr = np.array([v if v is not None else np.nan for v in self.kl_history])
@@ -477,17 +488,21 @@ class Trainer:
                 color='C3'
             )
             plt.xlabel('Episode')
-            plt.ylabel('Surrogate Reward')
-            plt.title(f'Discriminator Surrogate: ({self.task_name}) - ({self.method})')
+            plt.ylabel('GE-GA')
+            plt.title(f'GE-GA: ({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
-            plt.savefig('surrogate_curve.png', dpi=150)
-            plt.show()
+            plt.savefig(f'{filepath}/surrogate_curve.png', dpi=150)
+
 
 
 if __name__ == '__main__':
-    tr = Trainer('sine', 'modril')
+    tr = Trainer(
+        'sine',
+        'mine',
+        env_type='static',
+    )
     tr.runner()
     tr.plot(10)
     tr.plot_metrics()
