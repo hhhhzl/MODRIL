@@ -5,6 +5,3 @@ cd ../deps/rl-toolkit
 pip install -e .
 
 cd ../..
-
-mkdir -p data/trained_models
-pip install wandb -U
