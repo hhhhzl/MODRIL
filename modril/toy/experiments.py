@@ -485,9 +485,9 @@ def parse_args():
         help=""
     )
 
-    parser.add_argument("--n_episode", type=int, default=2000, help="Total Episodes")
-    parser.add_argument("--steps", type=int, default=200, help="Step size for each episodes")
-    parser.add_argument("--hidden_dim", type=int, default=256, help="hidden layer")
+    parser.add_argument("--n_episode", type=int, default=1000, help="Total Episodes")
+    parser.add_argument("--steps", type=int, default=100, help="Step size for each episodes")
+    parser.add_argument("--hidden_dim", type=int, default=128, help="hidden layer")
     parser.add_argument("--actor_lr", type=float, default=1e-3, help="PPO actor lr")
     parser.add_argument("--critic_lr", type=float, default=1e-2, help="PPO critic lr")
     parser.add_argument("--lmbda", type=float, default=0.95, help="PPO lambda")
