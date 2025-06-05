@@ -157,7 +157,7 @@ class Trainer:
         estimator.train()
 
         running_loss = 0.0
-        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, ncols=60, leave=True)
+        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, leave=True)
         for step in range(1, steps + 1):
             idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
             x0 = data_t[idx]
@@ -227,7 +227,7 @@ class Trainer:
             return
 
         start = time()
-        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True, ncols=60) as pbar:
+        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True) as pbar:
             for ep in range(self.n_episode):
                 state = self.env.reset()
                 state_list, action_list, next_state_list = [], [], []
