@@ -172,8 +172,8 @@ class GAIL_Flow:
         self.mode = mode
         dim = state_dim + action_dim
         if mode == "ffjord":
-            self.E = FFJORDDensity(dim).to(device)
-            self.A = FFJORDDensity(dim).to(device)
+            self.E = FFJORDDensity(dim, device).to(device)
+            self.A = FFJORDDensity(dim, device).to(device)
             self.optA = torch.optim.Adam(self.A.parameters(), lr=lr)
         elif mode == "fm":
             self.E = FlowMatching(state_dim, action_dim, device).to(device)
@@ -217,8 +217,8 @@ class GAIL_Flow:
         self._update_agent_density(s_A.detach(), a_A.detach())
 
         # with torch.no_grad():
-        logp_E = self.E.log_prob(xs_A).detach().numpy()
-        logp_A = self.A.log_prob(xs_A).detach().numpy()
+        logp_E = self.E.log_prob(xs_A).detach().cpu().numpy()
+        logp_A = self.A.log_prob(xs_A).detach().cpu().numpy()
         rewards = logp_E - logp_A
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
         rewards = rewards.squeeze()

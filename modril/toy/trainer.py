@@ -38,10 +38,10 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=1000,
-            steps=100,
+            n_episode=2000,
+            steps=200,
             device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-            hidden_dim=128,
+            hidden_dim=256,
             actor_lr=1e-3,
             critic_lr=1e-2,
             lmbda=0.95,
@@ -157,7 +157,7 @@ class Trainer:
         estimator.train()
 
         running_loss = 0.0
-        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, ncols=60, leave=True)
+        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, leave=True)
         for step in range(1, steps + 1):
             idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
             x0 = data_t[idx]
@@ -198,7 +198,7 @@ class Trainer:
             if self.method == "ffjord":
                 density_E = self._pretrain_density(
                     self.method,
-                    FFJORDDensity(self.state_dim + self.action_dim).to(self.device),
+                    FFJORDDensity(self.state_dim + self.action_dim, self.device).to(self.device),
                     xs_E_full,
                     int(self.n_episode * self.steps / 100)
                 )
@@ -227,7 +227,7 @@ class Trainer:
             return
 
         start = time()
-        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True, ncols=60) as pbar:
+        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True) as pbar:
             for ep in range(self.n_episode):
                 state = self.env.reset()
                 state_list, action_list, next_state_list = [], [], []
@@ -298,7 +298,7 @@ class Trainer:
                         D_expert = self.trainer.discriminator(xs_expert).clamp(eps, 1 - eps)
 
                     log_ratio = torch.log(D_expert) - torch.log(1 - D_expert)
-                    kl_ep = float(log_ratio.mean().detach().numpy())
+                    kl_ep = float(log_ratio.mean().detach().cpu().numpy())
                     self.kl_history.append(kl_ep)
                     self.logpE_history.append(None)
                     self.logpA_history.append(None)
@@ -314,8 +314,8 @@ class Trainer:
         self.run_time = time() - start
 
     def plot(self, filepath=".", K=5):
-        s_gt = np.array(self.expert_s)  # ground‐truth states
-        a_gt = np.array(self.expert_a)  # ground‐truth actions
+        s_gt = np.array(self.expert_s.cpu())  # ground‐truth states
+        a_gt = np.array(self.expert_a.cpu())  # ground‐truth actions
 
         last_states = self.all_states[-K:]
         last_actions = self.all_actions[-K:]
@@ -409,6 +409,7 @@ class Trainer:
         plt.legend(loc='best')
         plt.tight_layout()
         plt.savefig(f'{filepath}/result.png', dpi=150)
+        plt.close()
 
     def plot_metrics(self, filepath="."):
         total_eps = len(self.reward_history)
@@ -452,6 +453,7 @@ class Trainer:
         plt.grid(True)
         plt.tight_layout()
         plt.savefig(f'{filepath}/rewards.png', dpi=150)
+        plt.close()
 
         if any(v is not None for v in self.logpE_history):
             logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
@@ -480,6 +482,7 @@ class Trainer:
             plt.grid(True)
             plt.tight_layout()
             plt.savefig(f'{filepath}/scores.png', dpi=150)
+            plt.close()
 
         if any(v is not None for v in self.kl_history):
             kl_arr = np.array([v if v is not None else np.nan for v in self.kl_history])
@@ -499,15 +502,16 @@ class Trainer:
             plt.grid(True)
             plt.tight_layout()
             plt.savefig(f'{filepath}/surrogate_curve.png', dpi=150)
+            plt.close()
 
 
 
 if __name__ == '__main__':
     tr = Trainer(
         'sine',
-        'mine',
+        'gail',
         env_type='static',
     )
     tr.runner()
-    tr.plot(10)
+    tr.plot(K=10)
     tr.plot_metrics()

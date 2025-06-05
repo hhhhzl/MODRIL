@@ -187,12 +187,14 @@ class FFJORDDensity(nn.Module):
     log p(x) = log p(z_T) − ∫_0^T Tr(∂f/∂z_t) dt
     """
 
-    def __init__(self, dim, T=1.0, hidden=64):
+    def __init__(self, dim, device, T=1.0, hidden=64):
         super().__init__()
         self.T = T
         self.func = ODEF(dim, hidden)
+        self.device = device
         self.prior = torch.distributions.MultivariateNormal(
-            torch.zeros(dim), torch.eye(dim)
+            loc=torch.zeros(dim, device=self.device),
+            covariance_matrix=torch.eye(dim, device=self.device)
         )
 
     def _divergence_approx(self, y, f):
