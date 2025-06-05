@@ -38,10 +38,10 @@ class Trainer:
             self,
             function,
             method,
-            n_episode=1000,
-            steps=100,
+            n_episode=2000,
+            steps=200,
             device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-            hidden_dim=128,
+            hidden_dim=256,
             actor_lr=1e-3,
             critic_lr=1e-2,
             lmbda=0.95,
@@ -298,7 +298,7 @@ class Trainer:
                         D_expert = self.trainer.discriminator(xs_expert).clamp(eps, 1 - eps)
 
                     log_ratio = torch.log(D_expert) - torch.log(1 - D_expert)
-                    kl_ep = float(log_ratio.mean().detach().numpy())
+                    kl_ep = float(log_ratio.mean().detach().cpu().numpy())
                     self.kl_history.append(kl_ep)
                     self.logpE_history.append(None)
                     self.logpA_history.append(None)
@@ -314,8 +314,8 @@ class Trainer:
         self.run_time = time() - start
 
     def plot(self, filepath=".", K=5):
-        s_gt = np.array(self.expert_s)  # ground‐truth states
-        a_gt = np.array(self.expert_a)  # ground‐truth actions
+        s_gt = np.array(self.expert_s.cpu())  # ground‐truth states
+        a_gt = np.array(self.expert_a.cpu())  # ground‐truth actions
 
         last_states = self.all_states[-K:]
         last_actions = self.all_actions[-K:]
@@ -505,9 +505,9 @@ class Trainer:
 if __name__ == '__main__':
     tr = Trainer(
         'sine',
-        'mine',
+        'gail',
         env_type='static',
     )
     tr.runner()
-    tr.plot(10)
+    tr.plot(K=10)
     tr.plot_metrics()
