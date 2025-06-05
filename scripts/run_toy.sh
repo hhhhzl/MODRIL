@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cd ../..
+cd ..
 python modril/toy/experiments.py -r modril/results

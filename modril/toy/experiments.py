@@ -454,7 +454,6 @@ def parse_args():
         "--functions",
         "-f",
         nargs="+",
-        required=True,
         default=task_list,
         choices=task_list,
         help=""
@@ -463,7 +462,6 @@ def parse_args():
         "--methods",
         "-m",
         nargs="+",
-        required=True,
         default=method_list,
         choices=method_list,
         help=""
