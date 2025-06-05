@@ -40,6 +40,7 @@ class Trainer:
             method,
             n_episode=1000,
             steps=100,
+            device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
             hidden_dim=128,
             actor_lr=1e-3,
             critic_lr=1e-2,
@@ -50,10 +51,12 @@ class Trainer:
             lr_d=1e-3,
             pretrain=True,
             env_type='dynamic',
+            child_tqdm=1,
             **kwargs
     ):
         self.state_list = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.child = child_tqdm
+        self.device = device
         self.method = method
         # init task
         if function not in self.TASK_REGISTRY:
@@ -68,6 +71,8 @@ class Trainer:
             self.expert_a = torch.tensor(a_np, dtype=torch.float32, device=self.device)
         else:
             self.expert_a = None
+
+        self.env_type = env_type
 
         # dims
         self.state_dim = self.task.state_dim
@@ -152,7 +157,7 @@ class Trainer:
         estimator.train()
 
         running_loss = 0.0
-        pbar = tqdm(total=steps, desc="Pretraining...", ncols=100)
+        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, ncols=60, leave=True)
         for step in range(1, steps + 1):
             idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
             x0 = data_t[idx]
@@ -222,7 +227,7 @@ class Trainer:
             return
 
         start = time()
-        with tqdm(total=self.n_episode, desc='Progress') as pbar:
+        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True, ncols=60) as pbar:
             for ep in range(self.n_episode):
                 state = self.env.reset()
                 state_list, action_list, next_state_list = [], [], []
@@ -349,7 +354,7 @@ class Trainer:
             plt.scatter(s_pred[:, 0], a_pred[:, 0], label='Predicted', alpha=0.5)
             plt.xlabel('state')
             plt.ylabel('action')
-            plt.title(f'1D {self.task_name} Task: state vs action ({self.method})')
+            plt.title(f'1D {self.env_type}-{self.task_name} Task: state vs action ({self.method})')
 
         elif dim_s == 2:
             # 2a) action_dim=2：quiver
@@ -370,7 +375,7 @@ class Trainer:
                 )
                 plt.xlabel('state x')
                 plt.ylabel('state y')
-                plt.title(f'2D {self.task_name} Task: quiver plot (action as vector)')
+                plt.title(f'2D {self.env_type}-{self.task_name} Task: quiver plot (action as vector)')
 
             # 2b) action_dim=1：scatter
             elif dim_a == 1:
@@ -393,7 +398,7 @@ class Trainer:
 
                 plt.xlabel('state x')
                 plt.ylabel('state y')
-                plt.title(f'2D {self.task_name} Task: scatter plot ({self.method})')
+                plt.title(f'2D {self.env_type}-{self.task_name} Task: scatter plot ({self.method})')
 
             else:
                 raise ValueError(f"Unsupported action dimension: {dim_a}")
@@ -442,7 +447,7 @@ class Trainer:
         )
         plt.xlabel('Episode')
         plt.ylabel('Reward')
-        plt.title(f'Reward: ({self.task_name}) - ({self.method})')
+        plt.title(f'Reward: {self.env_type}-({self.task_name})-({self.method})')
         plt.legend(loc='best')
         plt.grid(True)
         plt.tight_layout()
@@ -470,7 +475,7 @@ class Trainer:
             )
             plt.xlabel('Episode')
             plt.ylabel('log p')
-            plt.title(f'score_E vs score_A: ({self.task_name}) - ({self.method})')
+            plt.title(f'score_E vs score_A: {self.env_type}-({self.task_name})-({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
@@ -488,8 +493,8 @@ class Trainer:
                 color='C3'
             )
             plt.xlabel('Episode')
-            plt.ylabel('GE-GA')
-            plt.title(f'GE-GA: ({self.task_name}) - ({self.method})')
+            plt.ylabel('Surrogate')
+            plt.title(f'Surrogate: {self.env_type}-({self.task_name}) - ({self.method})')
             plt.legend(loc='best')
             plt.grid(True)
             plt.tight_layout()
