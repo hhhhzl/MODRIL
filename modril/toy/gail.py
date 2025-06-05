@@ -172,8 +172,8 @@ class GAIL_Flow:
         self.mode = mode
         dim = state_dim + action_dim
         if mode == "ffjord":
-            self.E = FFJORDDensity(dim).to(device)
-            self.A = FFJORDDensity(dim).to(device)
+            self.E = FFJORDDensity(dim, device).to(device)
+            self.A = FFJORDDensity(dim, device).to(device)
             self.optA = torch.optim.Adam(self.A.parameters(), lr=lr)
         elif mode == "fm":
             self.E = FlowMatching(state_dim, action_dim, device).to(device)

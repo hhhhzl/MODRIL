@@ -198,7 +198,7 @@ class Trainer:
             if self.method == "ffjord":
                 density_E = self._pretrain_density(
                     self.method,
-                    FFJORDDensity(self.state_dim + self.action_dim).to(self.device),
+                    FFJORDDensity(self.state_dim + self.action_dim, self.device).to(self.device),
                     xs_E_full,
                     int(self.n_episode * self.steps / 100)
                 )
@@ -409,6 +409,7 @@ class Trainer:
         plt.legend(loc='best')
         plt.tight_layout()
         plt.savefig(f'{filepath}/result.png', dpi=150)
+        plt.close()
 
     def plot_metrics(self, filepath="."):
         total_eps = len(self.reward_history)
@@ -452,6 +453,7 @@ class Trainer:
         plt.grid(True)
         plt.tight_layout()
         plt.savefig(f'{filepath}/rewards.png', dpi=150)
+        plt.close()
 
         if any(v is not None for v in self.logpE_history):
             logpE_arr = np.array([v if v is not None else np.nan for v in self.logpE_history])
@@ -480,6 +482,7 @@ class Trainer:
             plt.grid(True)
             plt.tight_layout()
             plt.savefig(f'{filepath}/scores.png', dpi=150)
+            plt.close()
 
         if any(v is not None for v in self.kl_history):
             kl_arr = np.array([v if v is not None else np.nan for v in self.kl_history])
@@ -499,6 +502,7 @@ class Trainer:
             plt.grid(True)
             plt.tight_layout()
             plt.savefig(f'{filepath}/surrogate_curve.png', dpi=150)
+            plt.close()
 
 
 
