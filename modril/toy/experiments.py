@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import multiprocessing
+multiprocessing.set_start_method('spawn', force=True)
 
 def analyze_results(exp_path, last_k_mean=True, K=10):
     print("\n========================================>")
@@ -471,7 +473,7 @@ def parse_args():
         "--num_workers",
         "-p",
         type=int,
-        default=2,
+        default=4,
         help=""
     )
 
