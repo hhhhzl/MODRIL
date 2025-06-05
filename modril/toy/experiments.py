@@ -473,7 +473,7 @@ def parse_args():
         "--num_workers",
         "-p",
         type=int,
-        default=2,
+        default=4,
         help=""
     )
 
