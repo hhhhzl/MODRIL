@@ -13,10 +13,12 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import multiprocessing
+
 multiprocessing.set_start_method('spawn', force=True)
 
+
 def analyze_results(exp_path, last_k_mean=True, K=10):
-    print("\n========================================>")
+    print("==============Saving Results Files==========================>")
     env_dirs = []
     for name in os.listdir(exp_path):
         full = os.path.join(exp_path, name)
@@ -29,15 +31,20 @@ def analyze_results(exp_path, last_k_mean=True, K=10):
 
     for env_dir in env_dirs:
         full_env_dir = os.path.join(exp_path, env_dir)
-        tasks = sorted([d for d in os.listdir(full_env_dir)
-                        if os.path.isdir(os.path.join(full_env_dir, d))])
+        tasks = [d for d in os.listdir(full_env_dir)
+                 if os.path.isdir(os.path.join(full_env_dir, d))]
+        # reversed(tasks)
+        tasks = ['sine', 'multi_sine', 'gauss_sine', 'poly', 'gaussian_hill', 'mexican_hat', 'saddle', 'ripple',
+                 'bimodal_gaussian']
         if not tasks:
             print(f"[Warning] Task Path {full_env_dir} unfounded.")
             continue
 
         first_task = tasks[0]
-        methods = sorted([d for d in os.listdir(os.path.join(full_env_dir, first_task))
-                          if os.path.isdir(os.path.join(full_env_dir, first_task, d))])
+        methods = [d for d in os.listdir(os.path.join(full_env_dir, first_task))
+                   if os.path.isdir(os.path.join(full_env_dir, first_task, d))]
+        # reversed(methods)
+        methods = ['gail', 'drail', 'nwj', 'mine', 'ebgail', 'fm']
         if not methods:
             print(f"[Warning] Method Path {os.path.join(full_env_dir, first_task)} unfounded.")
             continue
@@ -240,7 +247,7 @@ def analyze_results(exp_path, last_k_mean=True, K=10):
 
         csv_ms = os.path.join(analysis_dir, f"{env_dir}_last{K if last_k_mean else 'all'}_mean_std.csv")
         table_mean_std.to_csv(csv_ms, encoding="utf-8-sig")
-        print(f"[Info] Saved {env_dir}  rewards statistics：{csv_ms}")
+        print(f"[Info] Saved {env_dir} rewards statistics：{csv_ms}")
 
         # ------------------ 4. run_time ------------------
         table_runtime = pd.DataFrame(
@@ -268,6 +275,7 @@ def analyze_results(exp_path, last_k_mean=True, K=10):
 
     print("[Done] analyze_results Done")
     print("========================================>\n")
+
 
 class Experiment:
     def __init__(self, args):
@@ -516,7 +524,9 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    exp = Experiment(args)
-    exp.run_all()
-    analyze_results(exp.experiment_dir)
+    # args = parse_args()
+    # exp = Experiment(args)
+    # exp.run_all()
+    # analyze_results(exp.experiment_dir)
+    analyze_results("../results/20250606_061258")
+
