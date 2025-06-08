@@ -4,10 +4,12 @@ from tqdm import tqdm
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
 from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
-from modril.toy.toy_tasks import *
+import numpy as np
 from modril.toy.utils import create_env
 import random
 from time import time
+from modril.toy.flowril import GAIL_FlowV2, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
+from modril.toy import TASK_REGISTRY
 
 seed = 1234
 random.seed(seed)
@@ -18,28 +20,12 @@ torch.cuda.manual_seed_all(seed)
 
 # --- Trainer refactored --- #
 class Trainer:
-    # register tasks
-    # Registry for tasks
-    TASK_REGISTRY = {
-        # 1D
-        'sine': Sine1D,
-        'multi_sine': MultiSine1D,
-        'gauss_sine': GaussSine1D,
-        'poly': Poly1D,
-        # 2D
-        'gaussian_hill': GaussianHill2D,
-        'mexican_hat': MexicanHat2D,
-        'saddle': Saddle2D,
-        'ripple': SinusoidalRipple2D,
-        'bimodal_gaussian': BimodalGaussian2D,
-    }
-
     def __init__(
             self,
             function,
             method,
-            n_episode=2000,
-            steps=200,
+            n_episode=1000,
+            steps=100,
             device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
             hidden_dim=256,
             actor_lr=1e-3,
@@ -59,9 +45,9 @@ class Trainer:
         self.device = device
         self.method = method
         # init task
-        if function not in self.TASK_REGISTRY:
+        if function not in TASK_REGISTRY:
             raise ValueError(f"Unknown function {function}")
-        self.task = self.TASK_REGISTRY[function]()
+        self.task = TASK_REGISTRY[function]()
         self.task_name = function
         # define expert and env
         self.expert_s = torch.tensor(self.task.expert_s, dtype=torch.float32, device=self.device)
@@ -135,6 +121,8 @@ class Trainer:
         elif method in ('ffjord', 'fm'):
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
                                      lr=1e-3)
+        elif method == 'flowril':
+            self.trainer = GAIL_FlowV2(self.agent, self.state_dim, self.action_dim, device=self.device, lr=1e-3)
         elif method == 'ebgail':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
@@ -168,6 +156,17 @@ class Trainer:
                 loss = estimator.nll(x0)
             elif method == "fm":  # fm
                 loss = estimator.c_fm_loss(s, a, dequant_std=0.02)
+            elif method == "flowril":
+                s_mix = s
+                a_mix = a + 0.1 * torch.randn_like(a)
+                loss_fm = estimator.c_fm_loss(s, a, role="expert")
+                loss_A = estimator.c_fm_loss(s_mix, a_mix, role="agent")
+                mix_a = a.detach().requires_grad_(True)
+                t = torch.rand_like(mix_a[:, :1])
+                v_c, r = estimator.net(mix_a, s_mix, t)
+                loss_anti = _hutchinson_div(mix_a, r, k=8).square().mean()
+                j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
+                loss = loss_fm + loss_A + 1e-4 * loss_anti + 1e-4 * j_pen
             else:
                 loss = estimator.deen_loss(x0)
 
@@ -185,15 +184,15 @@ class Trainer:
             pbar.update(1)
 
         pbar.close()
-
         estimator.eval()
-        for p in estimator.parameters():
-            p.requires_grad_(False)
+        if method != "flowril":
+            for p in estimator.parameters():
+                p.requires_grad_(False)
         return estimator
 
     def runner(self):
-        # pretrain for FFJORD
-        if (self.pretrain and (self.method == "ffjord" or self.method == "fm")) or self.method == 'ebgail':
+        # pretrain
+        if (self.pretrain and (self.method in ["ffjord", "fm", "flowril"])) or self.method == 'ebgail':
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
             if self.method == "ffjord":
                 density_E = self._pretrain_density(
@@ -217,9 +216,19 @@ class Trainer:
                     xs_E_full,
                     10000
                 )
+            elif self.method == "flowril":
+                density_E = self._pretrain_density(
+                    self.method,
+                    CoupledFlowMatching(self.state_dim, self.action_dim).to(self.device),
+                    xs_E_full,
+                    30000
+                )
             else:
                 raise
-            self.trainer.E = density_E
+            if self.method == 'flowril':
+                self.trainer.field = density_E
+            else:
+                self.trainer.E = density_E
 
         # training loop
         if self.env is None:
@@ -508,9 +517,10 @@ class Trainer:
 
 if __name__ == '__main__':
     tr = Trainer(
-        'sine',
-        'gail',
+        'multi_sine',
+        'flowril',
         env_type='static',
+        pretrain=True
     )
     tr.runner()
     tr.plot(K=10)
