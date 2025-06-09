@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 class SharedVNet(nn.Module):
-    def __init__(self, s_dim, a_dim, hidden=128):
+    def __init__(self, s_dim, a_dim, hidden=256):
         super().__init__()
         self.shared = nn.Sequential(
             nn.Linear(s_dim + a_dim + 1, hidden),
