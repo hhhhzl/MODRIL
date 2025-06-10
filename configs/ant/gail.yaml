@@ -18,15 +18,13 @@ parameters:
   env-name:
     value: AntGoal-v0
   traj-load-path:
-    value: ./expert_datasets/ant_50.pt
+    value: modril/expert_datasets/ant_50.pt
   cuda:
     value: True
   num-steps:
     value: 500
   traj-frac:
     value: 0.5
-  ant-noise:
-    value: 0.01
   action-input:
     value: True
   num-epochs:
@@ -46,4 +44,4 @@ parameters:
   seed: 
     values: [1,2,3,4,5]
   num-env-steps:
-    value: 10000000
+    value: 1000000

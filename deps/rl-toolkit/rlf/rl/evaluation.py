@@ -174,8 +174,12 @@ def evaluate(
     eval_episode_rewards = []
     eval_def_stats = defaultdict(list)
     ep_stats = defaultdict(list)
-
-    obs = eval_envs.reset()
+    
+    result = eval_envs.reset()
+    if len(result) == 2:
+        obs, _ = result
+    else:
+        obs = result
     #obs = state_action[:,0]
 
     hidden_states = {}

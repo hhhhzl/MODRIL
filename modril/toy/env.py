@@ -1,11 +1,18 @@
 import numpy as np
 from modril.toy.utils import norm_state, denorm_state
-from gym.envs.mujoco import mujoco_env
+from gym.envs.mujoco.mujoco_env import MujocoEnv
 from gym import error, logger, spaces
+from gym.utils import seeding
 import torch
 from gym import Env
 from gym.spaces import Box
 from collections import deque
+
+# def mujoco_seed(self, seed=None):
+#     self.np_random, seed = seeding.np_random(seed)
+#     return [seed]
+
+# setattr(MujocoEnv, 'seed', mujoco_seed)
 
 
 class Environment1DDynamic:
@@ -363,6 +370,7 @@ class ProxyEnv(Env):
 
     def __str__(self):
         return '{}({})'.format(type(self).__name__, self.wrapped_env)
+
 class NormalizedBoxEnv(ProxyEnv):
     """
     Normalize action to in [-1, 1].
@@ -419,10 +427,12 @@ class NormalizedBoxEnv(ProxyEnv):
     def __str__(self):
         return "Normalized: %s" % self._wrapped_env
 
-
-# Define the RL environment
 class SineEnv:
     def __init__(self, data, x_coordinates):
+        #self.x_min = -10
+        #self.x_max = 10
+        #self.y_min = 0
+        #self.y_max = 20
         self.x_min = -1
         self.x_max = 1
         self.y_min = -2
@@ -447,27 +457,30 @@ class SineEnv:
     def reset(self):
         index = np.random.choice(self.data.shape[0], size=1)
         state_action = self.data[index]
-        state, action = state_action[:, 0], state_action[:, 1]
+        state, action = state_action[:,0], state_action[:,1]
+        #state = torch.tensor(state).to(torch.float32).reshape(-1,1)
+        #state = torch.tensor([np.random.choice(self.x_coordinates)])
         return state
 
     def step(self, state):
-        # next_state = torch.tensor([np.random.choice(self.x_coordinates)])
+        #next_state = torch.tensor([np.random.choice(self.x_coordinates)])
         index = np.random.choice(self.data.shape[0], size=1)
         state_action = self.data[index]
-        state, action = state_action[:, 0], state_action[:, 1]
+        state, action = state_action[:,0], state_action[:,1]
         self.step_count += 1
         if self.step_count < self.max_step_num:
             done = False
         else:
             done = True
             self.step_count = 0
-        # state = torch.tensor(state).to(torch.float32).reshape(-1,1)
+        #state = torch.tensor(state).to(torch.float32).reshape(-1,1)
         return state, 0, done, {}
 
     def render(self):
         pass
 
 def get_sine_env(**kwargs):
+
     # Generate data from sine function
     np.random.seed(42)  # Set random seed for reproducibility
     # Define the parameters for the sine function
@@ -481,4 +494,9 @@ def get_sine_env(**kwargs):
     data = np.concatenate((x.reshape(-1, 1), y.reshape(-1, 1)), axis=1)
 
     # Initialize the environment
+    #state_dim = 1
+    #action_dim = 1
+    #input_size = state_dim + action_dim
+    #earning_rate = 0.01
+    #return SineEnv(data, x_coordinates)
     return NormalizedBoxEnv(SineEnv(data, x))

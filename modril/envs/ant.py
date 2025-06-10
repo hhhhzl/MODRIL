@@ -1,3 +1,4 @@
+
 import os
 import numpy as np
 from gym import spaces
@@ -69,7 +70,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             [
                 self.sim.data.qpos.flat[2:],
                 self.sim.data.qvel.flat,
-                # np.clip(self.sim.data.cfrc_ext, -1, 1).flat,
+                np.clip(self.sim.data.cfrc_ext, -1, 1).flat,
                 self.goal - current_position[:2],
             ]
         )
@@ -112,6 +113,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.goal = self.propose_original()
         qpos[-7:-5] = self.goal
 
+        # goal_prox
         self.found_goal = False
 
         self.set_state(qpos, qvel)
