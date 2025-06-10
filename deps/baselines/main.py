@@ -41,7 +41,7 @@ from rlf.algos import (
 
 from modril.utils.goal_traj_saver import GoalTrajSaver
 from modril.utils.trim_trans import trim_episodes_trans
-from .get_policy import (
+from deps.baselines.get_policy import (
     get_ppo_policy,
     get_basic_policy,
     get_diffusion_policy,

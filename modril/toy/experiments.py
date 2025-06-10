@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import multiprocessing
+from modril.toy import ENV_LIST as env_list, MEHTOD_LIST as method_list, TASK_LIST as task_list
 
 multiprocessing.set_start_method('spawn', force=True)
 
@@ -31,20 +32,24 @@ def analyze_results(exp_path, last_k_mean=True, K=10):
 
     for env_dir in env_dirs:
         full_env_dir = os.path.join(exp_path, env_dir)
-        tasks = [d for d in os.listdir(full_env_dir)
+        t = [d for d in os.listdir(full_env_dir)
                  if os.path.isdir(os.path.join(full_env_dir, d))]
-        # reversed(tasks)
-        tasks = ['sine', 'multi_sine', 'gauss_sine', 'poly', 'gaussian_hill', 'mexican_hat', 'saddle', 'ripple',
-                 'bimodal_gaussian']
+        tasks = []
+        for task in task_list:
+            if task in t:
+                tasks.append(task)
+
         if not tasks:
             print(f"[Warning] Task Path {full_env_dir} unfounded.")
             continue
 
         first_task = tasks[0]
-        methods = [d for d in os.listdir(os.path.join(full_env_dir, first_task))
+        m = [d for d in os.listdir(os.path.join(full_env_dir, first_task))
                    if os.path.isdir(os.path.join(full_env_dir, first_task, d))]
-        # reversed(methods)
-        methods = ['gail', 'drail', 'nwj', 'mine', 'ebgail', 'fm']
+        methods = []
+        for method in method_list:
+            if method in m:
+                methods.append(method)
         if not methods:
             print(f"[Warning] Method Path {os.path.join(full_env_dir, first_task)} unfounded.")
             continue
@@ -432,30 +437,6 @@ class Experiment:
 
 
 def parse_args():
-    task_list = [
-        'sine',
-        'multi_sine',
-        'gauss_sine',
-        'poly',
-        'gaussian_hill',
-        'mexican_hat',
-        'saddle',
-        'ripple',
-        'bimodal_gaussian',
-    ]
-    method_list = [
-        "gail",
-        "drail",
-        "mine",
-        "nwj",
-        "ebgail",
-        # "ffjord", 
-        "fm",
-        # "modril"
-    ]
-    env_list = [
-
-    ]
     parser = argparse.ArgumentParser(
         description="Experiments."
     )
@@ -481,7 +462,7 @@ def parse_args():
         "--num_workers",
         "-p",
         type=int,
-        default=4,
+        default=3,
         help=""
     )
 
@@ -493,7 +474,7 @@ def parse_args():
         help=""
     )
 
-    parser.add_argument("--n_episode", type=int, default=1000, help="Total Episodes")
+    parser.add_argument("--n_episode", type=int, default=2000, help="Total Episodes")
     parser.add_argument("--steps", type=int, default=100, help="Step size for each episodes")
     parser.add_argument("--device", type=str, default='cpu', help="device")
     parser.add_argument("--hidden_dim", type=int, default=256, help="hidden layer")
@@ -515,8 +496,8 @@ def parse_args():
         "-e",
         type=str,
         nargs="+",
-        default=["dynamic", "static"],
-        choices=["dynamic", "static"],
+        default=env_list,
+        choices=env_list,
         help="env type"
     )
 
@@ -524,9 +505,9 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    # args = parse_args()
-    # exp = Experiment(args)
-    # exp.run_all()
-    # analyze_results(exp.experiment_dir)
-    analyze_results("../results/20250606_061258")
+    args = parse_args()
+    exp = Experiment(args)
+    exp.run_all()
+    analyze_results(exp.experiment_dir)
+    # analyze_results("../results/20250606_061258")
 

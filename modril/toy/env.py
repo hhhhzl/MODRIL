@@ -1,5 +1,11 @@
 import numpy as np
 from modril.toy.utils import norm_state, denorm_state
+from gym.envs.mujoco import mujoco_env
+from gym import error, logger, spaces
+import torch
+from gym import Env
+from gym.spaces import Box
+from collections import deque
 
 
 class Environment1DDynamic:
@@ -217,18 +223,18 @@ class Environment2DStatic:
 
 class Environment2DDynamic:
     def __init__(
-        self,
-        s_norm: np.ndarray,
-        a_norm: np.ndarray,
-        state_dim: int,
-        action_dim: int,
-        dt: float = 0.1,
-        horizon: int = 100
+            self,
+            s_norm: np.ndarray,
+            a_norm: np.ndarray,
+            state_dim: int,
+            action_dim: int,
+            dt: float = 0.1,
+            horizon: int = 100
     ):
         assert state_dim == 2 and action_dim == 1
 
-        self.s_norm = s_norm.astype(np.float32)   # (N, 2)
-        self.a_norm = a_norm.astype(np.float32)   # (N, 1)
+        self.s_norm = s_norm.astype(np.float32)  # (N, 2)
+        self.a_norm = a_norm.astype(np.float32)  # (N, 1)
         self.state_dim = state_dim
         self.action_dim = action_dim
 
@@ -247,29 +253,29 @@ class Environment2DDynamic:
     def reset(self, batch_size: int = 1) -> np.ndarray:
         self.cur_step = 0
         idxs = np.random.randint(0, self.num_states, size=batch_size)
-        states = self.s_norm[idxs].astype(np.float32)   # shape = (batch_size, 2)
+        states = self.s_norm[idxs].astype(np.float32)  # shape = (batch_size, 2)
         if batch_size == 1:
-            self.state = states[0].copy()               # (2,)
+            self.state = states[0].copy()  # (2,)
             return self.state.copy()
         else:
             self.state = states[-1].copy()
             return states
 
     def step(self, pred_a_norm: np.ndarray):
-        a_pred = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1)   # (1,)
+        a_pred = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1)  # (1,)
         a_scalar = float(a_pred[0])
-        s_vec = self.state.reshape(-1)                                   # (2,)
+        s_vec = self.state.reshape(-1)  # (2,)
         idx_current = self._find_nearest_index(s_vec)
-        true_a_norm = self.a_norm[idx_current]                            # (1,)
+        true_a_norm = self.a_norm[idx_current]  # (1,)
         true_scalar = float(true_a_norm[0])
 
         error = a_scalar - true_scalar
         reward = - (error ** 2)
         next_continuous = s_vec + np.array([a_scalar * self.dt,
                                             a_scalar * self.dt], dtype=np.float32)
-        next_continuous = np.clip(next_continuous, -1.0, 1.0)             # (2,)
+        next_continuous = np.clip(next_continuous, -1.0, 1.0)  # (2,)
         idx_next = self._find_nearest_index(next_continuous)
-        next_state = self.s_norm[idx_next].astype(np.float32)             # (2,)
+        next_state = self.s_norm[idx_next].astype(np.float32)  # (2,)
         self.cur_step += 1
         done = self.cur_step >= self.horizon
         self.state = next_state.copy()
@@ -278,29 +284,29 @@ class Environment2DDynamic:
         return next_state, float(reward), done, info
 
     def batch_step(self, states_norm: np.ndarray, pred_a_norm: np.ndarray):
-        states = np.asarray(states_norm, dtype=np.float32).reshape(-1, 2)   # (B,2)
-        preds = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, 1)   # (B,1)
+        states = np.asarray(states_norm, dtype=np.float32).reshape(-1, 2)  # (B,2)
+        preds = np.asarray(pred_a_norm, dtype=np.float32).reshape(-1, 1)  # (B,1)
         B = states.shape[0]
 
-        diffs = states[:, None, :] - self.s_norm[None, :, :]               # (B,N,2)
-        dists = np.linalg.norm(diffs, axis=2)                              # (B,N)
-        idxs_current = np.argmin(dists, axis=1)                            # (B,)
+        diffs = states[:, None, :] - self.s_norm[None, :, :]  # (B,N,2)
+        dists = np.linalg.norm(diffs, axis=2)  # (B,N)
+        idxs_current = np.argmin(dists, axis=1)  # (B,)
 
-        true_a = self.a_norm[idxs_current]                                   # (B,1)
-        true_scalars = true_a.reshape(-1)                                    # (B,)
+        true_a = self.a_norm[idxs_current]  # (B,1)
+        true_scalars = true_a.reshape(-1)  # (B,)
 
-        errors = preds.reshape(-1) - true_scalars                             # (B,)
-        rewards = - (errors ** 2)                                             # (B,)
+        errors = preds.reshape(-1) - true_scalars  # (B,)
+        rewards = - (errors ** 2)  # (B,)
 
-        move = preds.reshape(-1, 1) * self.dt                                 # (B,1)
-        moves_2d = np.concatenate([move, move], axis=1)                       # (B,2)
-        next_continuous = states + moves_2d                                    # (B,2)
-        next_continuous = np.clip(next_continuous, -1.0, 1.0)                  # (B,2)
+        move = preds.reshape(-1, 1) * self.dt  # (B,1)
+        moves_2d = np.concatenate([move, move], axis=1)  # (B,2)
+        next_continuous = states + moves_2d  # (B,2)
+        next_continuous = np.clip(next_continuous, -1.0, 1.0)  # (B,2)
 
-        diffs_next = next_continuous[:, None, :] - self.s_norm[None, :, :]     # (B,N,2)
-        dists_next = np.linalg.norm(diffs_next, axis=2)                        # (B,N)
-        idxs_next = np.argmin(dists_next, axis=1)                               # (B,)
-        next_states = self.s_norm[idxs_next].astype(np.float32)               # (B,2)
+        diffs_next = next_continuous[:, None, :] - self.s_norm[None, :, :]  # (B,N,2)
+        dists_next = np.linalg.norm(diffs_next, axis=2)  # (B,N)
+        idxs_next = np.argmin(dists_next, axis=1)  # (B,)
+        next_states = self.s_norm[idxs_next].astype(np.float32)  # (B,2)
 
         self.cur_step += 1
         dones = np.zeros(B, dtype=bool)
@@ -309,3 +315,170 @@ class Environment2DDynamic:
 
         info = {"true_a_norm": true_a.copy()}  # (B,1)
         return next_states, rewards.astype(np.float32), dones, info
+
+class ProxyEnv(Env):
+    def __init__(self, wrapped_env):
+        self._wrapped_env = wrapped_env
+        self.action_space = self._wrapped_env.action_space
+        self.observation_space = self._wrapped_env.observation_space
+
+    @property
+    def wrapped_env(self):
+        return self._wrapped_env
+
+    def reset(self, **kwargs):
+        return self._wrapped_env.reset(**kwargs)
+
+    def step(self, action):
+        return self._wrapped_env.step(action)
+
+    def render(self, *args, **kwargs):
+        return self._wrapped_env.render(*args, **kwargs)
+
+    @property
+    def horizon(self):
+        return self._wrapped_env.horizon
+
+    def terminate(self):
+        if hasattr(self.wrapped_env, "terminate"):
+            self.wrapped_env.terminate()
+
+    def __getattr__(self, attr):
+        if attr == '_wrapped_env':
+            raise AttributeError()
+        return getattr(self._wrapped_env, attr)
+
+    def __getstate__(self):
+        """
+        This is useful to override in case the wrapped env has some funky
+        __getstate__ that doesn't play well with overriding __getattr__.
+
+        The main problematic case is/was gym's EzPickle serialization scheme.
+        :return:
+        """
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def __str__(self):
+        return '{}({})'.format(type(self).__name__, self.wrapped_env)
+class NormalizedBoxEnv(ProxyEnv):
+    """
+    Normalize action to in [-1, 1].
+
+    Optionally normalize observations and scale reward.
+    """
+
+    def __init__(
+            self,
+            env,
+            reward_scale=1.,
+            obs_mean=None,
+            obs_std=None,
+    ):
+        ProxyEnv.__init__(self, env)
+        self._should_normalize = not (obs_mean is None and obs_std is None)
+        if self._should_normalize:
+            if obs_mean is None:
+                obs_mean = np.zeros_like(env.observation_space.low)
+            else:
+                obs_mean = np.array(obs_mean)
+            if obs_std is None:
+                obs_std = np.ones_like(env.observation_space.low)
+            else:
+                obs_std = np.array(obs_std)
+        self._reward_scale = reward_scale
+        self._obs_mean = obs_mean
+        self._obs_std = obs_std
+        ub = np.ones(self._wrapped_env.action_space.shape)
+        self.action_space = Box(-1 * ub, ub)
+
+    def estimate_obs_stats(self, obs_batch, override_values=False):
+        if self._obs_mean is not None and not override_values:
+            raise Exception("Observation mean and std already set. To "
+                            "override, set override_values to True.")
+        self._obs_mean = np.mean(obs_batch, axis=0)
+        self._obs_std = np.std(obs_batch, axis=0)
+
+    def _apply_normalize_obs(self, obs):
+        return (obs - self._obs_mean) / (self._obs_std + 1e-8)
+
+    def step(self, action):
+        lb = self._wrapped_env.action_space.low
+        ub = self._wrapped_env.action_space.high
+        scaled_action = lb + (action + 1.) * 0.5 * (ub - lb)
+        scaled_action = np.clip(scaled_action, lb, ub)
+
+        wrapped_step = self._wrapped_env.step(scaled_action)
+        next_obs, reward, done, info = wrapped_step
+        if self._should_normalize:
+            next_obs = self._apply_normalize_obs(next_obs)
+        return next_obs, reward * self._reward_scale, done, info
+
+    def __str__(self):
+        return "Normalized: %s" % self._wrapped_env
+
+
+# Define the RL environment
+class SineEnv:
+    def __init__(self, data, x_coordinates):
+        self.x_min = -1
+        self.x_max = 1
+        self.y_min = -2
+        self.y_max = 2
+        self.tolerance = 1e-3  # Set the tolerance threshold
+        self.data = data
+        self.x_coordinates = x_coordinates
+
+        self.action_space = spaces.Box(low=np.array([-1.0]), high=np.array([1.0]), dtype=np.float32)
+        self.observation_space = spaces.Box(low=np.array([0]), high=np.array([10]), dtype=np.float32)
+
+        self.max_step_num = 100
+        self.step_count = 0
+
+    def seed(self, seed=0):
+        mujoco_env.MujocoEnv.seed(self, seed)
+
+    def get_reward(self, predicted_y, true_y):
+        # Calculate the reward based on the prediction error
+        return -torch.abs(predicted_y - true_y)
+
+    def reset(self):
+        index = np.random.choice(self.data.shape[0], size=1)
+        state_action = self.data[index]
+        state, action = state_action[:, 0], state_action[:, 1]
+        return state
+
+    def step(self, state):
+        # next_state = torch.tensor([np.random.choice(self.x_coordinates)])
+        index = np.random.choice(self.data.shape[0], size=1)
+        state_action = self.data[index]
+        state, action = state_action[:, 0], state_action[:, 1]
+        self.step_count += 1
+        if self.step_count < self.max_step_num:
+            done = False
+        else:
+            done = True
+            self.step_count = 0
+        # state = torch.tensor(state).to(torch.float32).reshape(-1,1)
+        return state, 0, done, {}
+
+    def render(self):
+        pass
+
+def get_sine_env(**kwargs):
+    # Generate data from sine function
+    np.random.seed(42)  # Set random seed for reproducibility
+    # Define the parameters for the sine function
+    amplitude = 1.0  # Amplitude of the sine wave
+    frequency = 1  # Frequency of the sine wave
+    phase = 0.0  # Phase shift of the sine wave
+    noise_std = 0.05  # Standard deviation of the Gaussian noise
+    # Generate x values
+    x = np.linspace(0, 10, num=10000)
+    y = amplitude * np.sin(2 * np.pi * frequency * x + phase) + np.random.normal(0, noise_std, size=len(x))
+    data = np.concatenate((x.reshape(-1, 1), y.reshape(-1, 1)), axis=1)
+
+    # Initialize the environment
+    return NormalizedBoxEnv(SineEnv(data, x))
