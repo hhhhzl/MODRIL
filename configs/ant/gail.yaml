@@ -44,4 +44,4 @@ parameters:
   seed: 
     values: [1,2,3,4,5]
   num-env-steps:
-    value: 10000000
+    value: 1000000

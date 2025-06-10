@@ -15,25 +15,6 @@ from rlf.baselines.vec_env.vec_normalize import \
 import rlf.rl.utils as rutils
 from functools import partial
 
-class GymAPICompat(gym.Wrapper):
-    """
-    Wraps an old‐style env so reset()→(obs,info) and
-    step()→(obs,rew,terminated,truncated,info).
-    After gym => 0.26
-    """
-    def reset(self, **kwargs):
-        out = self.env.reset(**kwargs)
-        if isinstance(out, tuple) and len(out)==2:
-            return out
-        return out, {}
-
-    def step(self, action):
-        out = self.env.step(action)
-        if len(out)==5:
-            return out
-        obs, rew, done, info = out
-        return obs, rew, done, False, info
-
 
 def get_vec_normalize(venv):
     if isinstance(venv, VecNormalize):
@@ -236,11 +217,11 @@ class EnvNormFnWrapper(VecEnvWrapper):
 # Checks whether done was caused my timit limits or not
 class TimeLimitMask(gym.Wrapper):
     def step(self, action):
-        obs, rew, done, truncated, info = self.env.step(action)
+        obs, rew, done, info = self.env.step(action)
         if done and self.env._max_episode_steps == self.env._elapsed_steps:
             info['bad_transition'] = True
 
-        return obs, rew, done, truncated, info
+        return obs, rew, done, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)

@@ -8,11 +8,11 @@ from gym import Env
 from gym.spaces import Box
 from collections import deque
 
-def mujoco_seed(self, seed=None):
-    self.np_random, seed = seeding.np_random(seed)
-    return [seed]
+# def mujoco_seed(self, seed=None):
+#     self.np_random, seed = seeding.np_random(seed)
+#     return [seed]
 
-setattr(MujocoEnv, 'seed', mujoco_seed)
+# setattr(MujocoEnv, 'seed', mujoco_seed)
 
 
 class Environment1DDynamic:
@@ -419,18 +419,20 @@ class NormalizedBoxEnv(ProxyEnv):
         scaled_action = np.clip(scaled_action, lb, ub)
 
         wrapped_step = self._wrapped_env.step(scaled_action)
-        next_obs, reward, done, truncated, info = wrapped_step
+        next_obs, reward, done, info = wrapped_step
         if self._should_normalize:
             next_obs = self._apply_normalize_obs(next_obs)
-        return next_obs, reward * self._reward_scale, done, truncated, info
+        return next_obs, reward * self._reward_scale, done, info
 
     def __str__(self):
         return "Normalized: %s" % self._wrapped_env
 
-
-# Define the RL environment
 class SineEnv:
     def __init__(self, data, x_coordinates):
+        #self.x_min = -10
+        #self.x_max = 10
+        #self.y_min = 0
+        #self.y_max = 20
         self.x_min = -1
         self.x_max = 1
         self.y_min = -2
@@ -446,7 +448,7 @@ class SineEnv:
         self.step_count = 0
 
     def seed(self, seed=0):
-        MujocoEnv.seed(self, seed)
+        mujoco_env.MujocoEnv.seed(self, seed)
 
     def get_reward(self, predicted_y, true_y):
         # Calculate the reward based on the prediction error
@@ -455,28 +457,33 @@ class SineEnv:
     def reset(self):
         index = np.random.choice(self.data.shape[0], size=1)
         state_action = self.data[index]
-        state, action = state_action[:, 0], state_action[:, 1]
-        return state, {}
+        state, action = state_action[:,0], state_action[:,1]
+        #state = torch.tensor(state).to(torch.float32).reshape(-1,1)
+        #state = torch.tensor([np.random.choice(self.x_coordinates)])
+        return state
 
     def step(self, state):
-        # next_state = torch.tensor([np.random.choice(self.x_coordinates)])
+        #next_state = torch.tensor([np.random.choice(self.x_coordinates)])
         index = np.random.choice(self.data.shape[0], size=1)
         state_action = self.data[index]
-        state, action = state_action[:, 0], state_action[:, 1]
+        state, action = state_action[:,0], state_action[:,1]
         self.step_count += 1
         if self.step_count < self.max_step_num:
             done = False
         else:
             done = True
             self.step_count = 0
-        # state = torch.tensor(state).to(torch.float32).reshape(-1,1)
-        return state, 0, done, False, {}
+        #state = torch.tensor(state).to(torch.float32).reshape(-1,1)
+        return state, 0, done, {}
 
     def render(self):
         pass
 
 def get_sine_env(**kwargs):
+
+    # Generate data from sine function
     np.random.seed(42)  # Set random seed for reproducibility
+    # Define the parameters for the sine function
     amplitude = 1.0  # Amplitude of the sine wave
     frequency = 1  # Frequency of the sine wave
     phase = 0.0  # Phase shift of the sine wave
@@ -487,4 +494,9 @@ def get_sine_env(**kwargs):
     data = np.concatenate((x.reshape(-1, 1), y.reshape(-1, 1)), axis=1)
 
     # Initialize the environment
+    #state_dim = 1
+    #action_dim = 1
+    #input_size = state_dim + action_dim
+    #earning_rate = 0.01
+    #return SineEnv(data, x_coordinates)
     return NormalizedBoxEnv(SineEnv(data, x))

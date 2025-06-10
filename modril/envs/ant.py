@@ -1,38 +1,14 @@
+
 import os
 import numpy as np
 from gym import spaces
 from gym import utils
 from gym.envs.mujoco import mujoco_env
+from mujoco_py.builder import MujocoException
 
-# try:
-#     import mujoco_py
-# except ImportError as e:
-#     MUJOCO_PY_IMPORT_ERROR = e
-# else:
-#     MUJOCO_PY_IMPORT_ERROR = None
 
 class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
-    metadata = {
-        "render_modes": ["human", "rgb_array", "depth_array"],
-        "render_fps": 10,
-    }
-
     def __init__(self, angle_range=(0, np.pi), distance=5):
-        obs_dim = 29
-        observation_space = spaces.Box(
-            low=-np.inf, 
-            high=np.inf, 
-            shape=(obs_dim,), 
-            dtype=np.float64
-        )
-
-        super().__init__(
-            os.path.join(os.path.dirname(__file__), "ant.xml"),
-            frame_skip=5,
-            render_mode="human",
-            observation_space=observation_space
-        )
-
         self.goal = np.array([10, 0])
         self.angle_range = angle_range
         self.distance = distance
@@ -41,16 +17,10 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.found_goal = False
         self.coverage = 100
 
-        # self.model = mujoco_py.load_model_from_path(self.fullpath)
-        # self.sim = mujoco_py.MjSim(self.model)
-        # self.data = self.sim.data
-
+        mujoco_env.MujocoEnv.__init__(
+            self, os.path.join(os.path.abspath(os.path.dirname(__file__)), "ant.xml"), 5
+        )
         utils.EzPickle.__init__(self)
-        print(self.__dict__)
-
-    def seed(self, seed=None):
-        self.np_random, seed = utils.seeding.np_random(seed)
-        return [seed]
 
     def step(self, a):
         info = {}
@@ -82,6 +52,8 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         notdone = True
         done = not notdone
         if dist < 0.1:
+            # if not self.found_goal:
+            #    print("Success")
             self.found_goal = True
 
         ob = self._get_obs()
@@ -90,7 +62,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         info["reward_forward"] = forward_reward
         info["reward_ctrl"] = -ctrl_cost
         info["reward_contact"] = -contact_cost
-        return ob, reward, done, False, info
+        return ob, reward, done, info
 
     def _get_obs(self):
         current_position = self.get_body_com("torso")
@@ -98,7 +70,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             [
                 self.sim.data.qpos.flat[2:],
                 self.sim.data.qvel.flat,
-                # np.clip(self.sim.data.cfrc_ext, -1, 1).flat,
+                np.clip(self.sim.data.cfrc_ext, -1, 1).flat,
                 self.goal - current_position[:2],
             ]
         )
@@ -141,6 +113,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.goal = self.propose_original()
         qpos[-7:-5] = self.goal
 
+        # goal_prox
         self.found_goal = False
 
         self.set_state(qpos, qvel)
@@ -175,7 +148,7 @@ class AntGoalEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         l = (self.angle_range[1] - self.angle_range[0]) / num_division
         while True:
             angle = self.angle_range[0] + (
-                self.np_random.random() * (self.angle_range[1] - self.angle_range[0])
+                self.np_random.rand() * (self.angle_range[1] - self.angle_range[0])
             )
             exclude = False
             for i in exclude_range:

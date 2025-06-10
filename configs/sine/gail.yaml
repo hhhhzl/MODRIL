@@ -28,7 +28,7 @@ parameters:
   gail-reward-norm:
     value: True
   cuda:
-    value: True
+    value: False
   eval-interval:
     value: 1
   save-interval:
