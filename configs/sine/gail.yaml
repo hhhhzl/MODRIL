@@ -1,5 +1,5 @@
 project: 'fm-project'
-program: baselines/main.py
+program: deps/baselines/main.py
 method: grid
 name: Sine-gail
 command:
@@ -28,7 +28,7 @@ parameters:
   gail-reward-norm:
     value: True
   cuda:
-    value: True
+    value: False
   eval-interval:
     value: 1
   save-interval:

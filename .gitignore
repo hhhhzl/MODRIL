@@ -10,6 +10,7 @@ __pycache__
 /modril/results
 /results
 /wandb
+/scripts/wandb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

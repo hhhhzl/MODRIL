@@ -1,7 +1,7 @@
 project: 'modril-project'
-program: modril/baseline/main.py
+program: deps/baselines/main.py
 method: grid
-name: Ant-wail-0.03
+name: Ant-gail-0.01
 command:
   - ${env}
   - python3
@@ -12,9 +12,9 @@ command:
 
 parameters:
   prefix:
-    value: wail
+    value: gail
   alg:
-    value: wail
+    value: gail
   env-name:
     value: AntGoal-v0
   traj-load-path:
@@ -26,26 +26,24 @@ parameters:
   traj-frac:
     value: 0.5
   ant-noise:
-    value: 0.03
+    value: 0.01
   action-input:
     value: True
   num-epochs:
     value: 10
   num-mini-batch:
     value: 32
-  wail-reward-norm:
+  gail-reward-norm:
     value: True
   entropy-coef:
     value: 0.001
   lr:
     value: 0.0001
   disc-lr:
-    value: 0.00001
+    value: 0.0001
   ppo-hidden-dim:
     value: 256
   seed: 
     values: [1,2,3,4,5]
-  regularize-epsilon:
-    value: 0.01
   num-env-steps:
     value: 10000000

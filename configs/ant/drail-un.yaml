@@ -1,7 +1,7 @@
 project: 'modril-project'
-program: modril/baseline/main.py
+program: deps/baselines/main.py
 method: grid
-name: Ant-gailGP-0.01
+name: Ant-drail-un-0.01
 command:
   - ${env}
   - python3
@@ -12,11 +12,9 @@ command:
 
 parameters:
   prefix:
-    value: gail
+    value: drail-un
   alg:
-    value: gail
-  disc-grad-pen:
-    value: 1
+    value: drail-un
   env-name:
     value: AntGoal-v0
   traj-load-path:
@@ -35,7 +33,7 @@ parameters:
     value: 10
   num-mini-batch:
     value: 32
-  gail-reward-norm:
+  drail-reward-norm:
     value: True
   entropy-coef:
     value: 0.001
@@ -43,9 +41,15 @@ parameters:
     value: 0.0001
   disc-lr:
     value: 0.0001
+  discrim-num-unit:
+    value: 1024
+  depth: 
+    value: 4
   ppo-hidden-dim:
     value: 256
   seed: 
     values: [1,2,3,4,5]
+  reward-type:
+    value: "airl"
   num-env-steps:
     value: 10000000

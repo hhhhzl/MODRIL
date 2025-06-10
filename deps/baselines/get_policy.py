@@ -6,7 +6,7 @@ from rlf.policies.actor_critic.dist_actor_q import (DistActorQ, get_sac_actor,
                                                     get_sac_critic)
 from rlf.policies.actor_critic.reg_actor_critic import RegActorCritic
 from rlf.rl.model import MLPBase, MLPBasic, TwoLayerMlpWithAction
-from goal_prox.models import GwImgEncoder
+from modril.utils.models import  GwImgEncoder
 
 
 def get_ppo_policy(env_name, args):

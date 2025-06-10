@@ -1,7 +1,7 @@
 project: 'modril-project'
-program: modril/baseline/main.py
+program: deps/baselines/main.py
 method: grid
-name: Ant-drail-0.05
+name: Ant-drail-0.01
 command:
   - ${env}
   - python3
@@ -26,7 +26,7 @@ parameters:
   traj-frac:
     value: 0.5
   ant-noise:
-    value: 0.05
+    value: 0.01
   action-input:
     value: True
   num-epochs:
@@ -40,7 +40,7 @@ parameters:
   lr:
     value: 0.0001
   disc-lr:
-    value: 0.0001
+    value: 0.0002
   discrim-num-unit:
     value: 1024
   depth: 

@@ -75,7 +75,7 @@ class RunSettings(MasterClass):
         :return: The location to a config file that holds whatever information
             about the project.
         """
-        return osp.join(self.working_dir, "config.yaml")
+        return osp.join(self.working_dir, "configs", "wandb.yaml")
 
     def create_traj_saver(self, save_path: str) -> rlf.il.TrajSaver:
         """
