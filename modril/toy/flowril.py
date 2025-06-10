@@ -132,7 +132,7 @@ class CoupledFlowMatching(nn.Module):
 # Learner                                                                      #
 ################################################################################
 class GAIL_FlowV2:
-    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-3, gamma_stab=0):
+    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-6, gamma_stab=1e-8):
         self.device, self.agent = device, agent
         self.beta_anti, self.gamma_stab = beta_anti, gamma_stab
         self.field = CoupledFlowMatching(state_dim, action_dim).to(device)

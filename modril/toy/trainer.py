@@ -131,8 +131,17 @@ class Trainer:
         else:
             raise ValueError(f"Unknown method {method}")
 
-    def _pretrain_density(self, method, estimator, data, steps=3000, batch=512, lr=1e-4, clip_grad=1.0,
-                          log_interval=500):
+    def _pretrain_density(
+            self,
+            method,
+            estimator,
+            data,
+            steps=3000,
+            batch=512,
+            lr=1e-4,
+            clip_grad=1.0,
+            log_interval=10
+    ):
         """
         method: "ffjord" or "fm" or "DEEN"
         """
@@ -145,7 +154,7 @@ class Trainer:
         estimator.train()
 
         running_loss = 0.0
-        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}", position=self.child, leave=True)
+        pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}")
         for step in range(1, steps + 1):
             idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
             x0 = data_t[idx]
@@ -164,9 +173,9 @@ class Trainer:
                 mix_a = a.detach().requires_grad_(True)
                 t = torch.rand_like(mix_a[:, :1])
                 v_c, r = estimator.net(mix_a, s_mix, t)
-                loss_anti = _hutchinson_div(mix_a, r, k=8).square().mean()
+                loss_anti = _hutchinson_div(mix_a, r, k=1).square().mean()
                 j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
-                loss = loss_fm + loss_A + 1e-3 * loss_anti + 1e-5 * j_pen
+                loss = loss_fm + loss_A + 1e-4 * loss_anti + 2.4e-10 * j_pen
             else:
                 loss = estimator.deen_loss(x0)
 
@@ -221,7 +230,7 @@ class Trainer:
                     self.method,
                     CoupledFlowMatching(self.state_dim, self.action_dim).to(self.device),
                     xs_E_full,
-                    30000
+                    10000
                 )
             else:
                 raise
@@ -236,7 +245,7 @@ class Trainer:
             return
 
         start = time()
-        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}', position=self.child, leave=True) as pbar:
+        with tqdm(total=self.n_episode, desc=f'Progress {self.env_type}-{self.task_name}-{self.method}') as pbar:
             for ep in range(self.n_episode):
                 state = self.env.reset()
                 state_list, action_list, next_state_list = [], [], []
@@ -517,7 +526,7 @@ class Trainer:
 
 if __name__ == '__main__':
     tr = Trainer(
-        'multi_sine',
+        'sine',
         'flowril',
         env_type='static',
         pretrain=True
