@@ -10,3 +10,9 @@ register(
         'dataset_url': 'None'
     }
 )
+
+register(
+    id='AntGoal-v0',
+    entry_point='modril.envs.ant:AntGoalEnv',
+    max_episode_steps=50,
+    )

@@ -476,9 +476,7 @@ class SineEnv:
         pass
 
 def get_sine_env(**kwargs):
-    # Generate data from sine function
     np.random.seed(42)  # Set random seed for reproducibility
-    # Define the parameters for the sine function
     amplitude = 1.0  # Amplitude of the sine wave
     frequency = 1  # Frequency of the sine wave
     phase = 0.0  # Phase shift of the sine wave
