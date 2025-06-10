@@ -15,6 +15,25 @@ from rlf.baselines.vec_env.vec_normalize import \
 import rlf.rl.utils as rutils
 from functools import partial
 
+class GymAPICompat(gym.Wrapper):
+    """
+    Wraps an old‐style env so reset()→(obs,info) and
+    step()→(obs,rew,terminated,truncated,info).
+    After gym => 0.26
+    """
+    def reset(self, **kwargs):
+        out = self.env.reset(**kwargs)
+        if isinstance(out, tuple) and len(out)==2:
+            return out
+        return out, {}
+
+    def step(self, action):
+        out = self.env.step(action)
+        if len(out)==5:
+            return out
+        obs, rew, done, info = out
+        return obs, rew, done, False, info
+
 
 def get_vec_normalize(venv):
     if isinstance(venv, VecNormalize):
@@ -24,14 +43,12 @@ def get_vec_normalize(venv):
 
     return None
 
-
 def make_env(rank, env_id, seed, allow_early_resets, env_interface,
-             set_eval, alg_env_settings, args, immediate_call=False):
+        set_eval, alg_env_settings, args, immediate_call=False):
     """
     :param immediate_call: Whether to return the created environment or to return
       the lambda that creates the environment.
     """
-
     def _thunk():
         env = env_interface.create_from_id(env_id)
 
@@ -47,10 +64,10 @@ def make_env(rank, env_id, seed, allow_early_resets, env_interface,
 
         env.seed(seed + rank)
         if hasattr(env.action_space, 'seed'):
-            env.action_space.seed(seed + rank)
+            env.action_space.seed(seed+rank)
 
         env = Monitor(env, None,
-                      allow_early_resets=allow_early_resets)
+                allow_early_resets=allow_early_resets)
 
         obs_space = env.observation_space
 
@@ -62,25 +79,22 @@ def make_env(rank, env_id, seed, allow_early_resets, env_interface,
 
         keys = rutils.get_ob_keys(env.observation_space)
         transpose_keys = [k for k in keys
-                          if len(rutils.get_ob_shape(env.observation_space, k)) == 3]
+                if len(rutils.get_ob_shape(env.observation_space, k)) == 3]
         if len(transpose_keys) > 0 and args.transpose_frame:
             env = TransposeImage(env, op=[2, 0, 1], transpose_keys=transpose_keys)
         if set_eval and args.render_metric:
             def overall_render_mod(frames, **kwargs):
                 frames = env_interface.mod_render_frames(frames, **kwargs)
                 return alg_env_settings.mod_render_frames_fn(frames, **kwargs)
-
             env = RenderWrapper(env, overall_render_mod)
 
         env = env_interface.final_trans_fn(env)
 
         return env
-
     if immediate_call:
         return _thunk()
 
     return _thunk
-
 
 def make_vec_envs_easy(env_name, num_processes, env_interface, alg_env_settings, args):
     return make_vec_envs(env_name, args.seed, num_processes,
@@ -100,21 +114,22 @@ def make_vec_envs(env_name,
                   alg_env_settings,
                   num_frame_stack=None,
                   set_eval=False):
+
     if args.render_metric and set_eval and num_processes > 1:
         raise ValueError('Cannot create multiple processes when rendering metrics at the moment')
 
     envs = [
-        make_env(i, env_name, seed, allow_early_resets, env_interface,
-                 set_eval, alg_env_settings, args)
-        for i in range(num_processes)
-    ]
+            make_env(i, env_name, seed, allow_early_resets, env_interface,
+                set_eval, alg_env_settings, args)
+            for i in range(num_processes)
+            ]
 
     origin_env = env_interface.create_from_id(env_name)
 
     if len(envs) > 1 or args.force_multi_proc:
         custom_envs = env_interface.get_setup_multiproc_fn(make_env, env_name,
-                                                           seed, allow_early_resets, env_interface, set_eval,
-                                                           alg_env_settings, args)
+                seed, allow_early_resets, env_interface, set_eval,
+                alg_env_settings, args)
         if custom_envs is None:
             envs = ShmemVecEnv(envs, context=args.context_mode)
         else:
@@ -124,22 +139,22 @@ def make_vec_envs(env_name,
 
     ob_shapes = rutils.get_ob_shapes(envs.observation_space)
 
-    single_shapes = {k: v for k, v in ob_shapes.items() if len(v) == 1}
+    single_shapes = {k:v for k,v in ob_shapes.items() if len(v) == 1}
 
     use_env_norm = not set_eval and len(single_shapes) > 0 and args.normalize_env
 
     if use_env_norm:
         if gamma is None:
             envs = VecNormalize(envs, ret=False,
-                                ret_raw_obs=alg_env_settings.ret_raw_obs)
+                    ret_raw_obs=alg_env_settings.ret_raw_obs)
         else:
             envs = VecNormalize(envs, gamma=gamma,
-                                ret_raw_obs=alg_env_settings.ret_raw_obs)
+                    ret_raw_obs=alg_env_settings.ret_raw_obs)
 
     if env_interface.requires_tensor_wrap():
         envs = VecPyTorch(envs, device)
 
-        triple_shapes = {k: v for k, v in ob_shapes.items() if len(v) == 3}
+        triple_shapes = {k:v for k,v in ob_shapes.items() if len(v) == 3}
         if num_frame_stack is not None and args.frame_stack:
             envs = VecPyTorchFrameStack(envs, num_frame_stack, device)
         elif len(triple_shapes) > 0 and args.frame_stack:
@@ -148,13 +163,12 @@ def make_vec_envs(env_name,
     if (alg_env_settings.state_fn is not None) or (alg_env_settings.action_fn is not None):
         if use_env_norm and alg_env_settings.state_fn is not None:
             raise ValueError(('Cannot specify environment normalization at ',
-                              'the same time as action or state transformation. Specify ',
-                              '`--normalize-env False'))
+                'the same time as action or state transformation. Specify ',
+                '`--normalize-env False'))
         envs = EnvNormFnWrapper(envs, device, alg_env_settings.state_fn,
-                                alg_env_settings.action_fn)
+                alg_env_settings.action_fn)
 
     return origin_env, envs
-
 
 class RenderWrapper(gym.Wrapper):
     def __init__(self, env, render_modify_fn):
@@ -188,10 +202,9 @@ class RenderWrapper(gym.Wrapper):
     def render(self, mode, **kwargs):
         frame = super().render(mode)
         return self.render_modify_fn(frame, env_cur_obs=self.env_cur_obs,
-                                     env_next_obs=self.env_next_obs,
-                                     env_cur_action=self.env_cur_action,
-                                     env_cur_reward=self.env_cur_reward, **kwargs)
-
+                env_next_obs=self.env_next_obs,
+                env_cur_action=self.env_cur_action,
+                env_cur_reward=self.env_cur_reward, **kwargs)
 
 class EnvNormFnWrapper(VecEnvWrapper):
     def __init__(self, venv, device, state_fn, action_fn):
@@ -223,11 +236,11 @@ class EnvNormFnWrapper(VecEnvWrapper):
 # Checks whether done was caused my timit limits or not
 class TimeLimitMask(gym.Wrapper):
     def step(self, action):
-        obs, rew, done, info = self.env.step(action)
+        obs, rew, done, truncated, info = self.env.step(action)
         if done and self.env._max_episode_steps == self.env._elapsed_steps:
             info['bad_transition'] = True
 
-        return obs, rew, done, info
+        return obs, rew, done, truncated, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
@@ -287,6 +300,7 @@ class TransposeImage(TransposeObs):
 
         self.transpose_keys = transpose_keys
 
+
     def observation(self, ob):
         for k in self.transpose_keys:
             if k is None:
@@ -329,7 +343,6 @@ class VecPyTorch(VecEnvWrapper):
             x = torch.Tensor(x)
             x = x.to(self.device)
             return x
-
         if isinstance(obs, dict):
             for k in obs:
                 obs[k] = _convert_obs(obs[k])
@@ -371,8 +384,8 @@ class VecNormalize(VecNormalize_):
                     if self.training and update:
                         ob_rms.update(obs[k])
                     obs[k] = np.clip((obs[k] - ob_rms.mean) /
-                                     np.sqrt(ob_rms.var + self.epsilon),
-                                     -self.clipob, self.clipob)
+                                  np.sqrt(ob_rms.var + self.epsilon),
+                                  -self.clipob, self.clipob)
             return obs
         else:
             return obs
@@ -400,8 +413,8 @@ class VecPyTorchFrameStack(VecEnvWrapper):
 
         self.stacked_obs = rutils.StackHelper(ob_space.shape, nstack, device, venv.num_envs)
         new_obs_space = rutils.update_obs_space(
-            venv.observation_space,
-            rutils.reshape_obs_space(ob_space, self.stacked_obs.get_shape()))
+                venv.observation_space,
+                rutils.reshape_obs_space(ob_space, self.stacked_obs.get_shape()))
 
         VecEnvWrapper.__init__(self, venv, observation_space=new_obs_space)
 
@@ -409,7 +422,7 @@ class VecPyTorchFrameStack(VecEnvWrapper):
         obs, rews, news, infos = self.venv.step_wait()
 
         stacked_obs, infos = self.stacked_obs.update_obs(
-            rutils.get_def_obs(obs), news, infos)
+                rutils.get_def_obs(obs), news, infos)
 
         obs = rutils.set_def_obs(obs, stacked_obs)
         return obs, rews, news, infos

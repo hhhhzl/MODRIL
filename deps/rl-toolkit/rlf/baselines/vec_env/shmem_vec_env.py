@@ -120,6 +120,7 @@ def _subproc_worker(pipe, parent_pipe, env_fn_wrapper, obs_bufs, obs_shapes, obs
     Control a single environment instance using IPC and
     shared memory.
     """
+
     def _write_obs(maybe_dict_obs):
         flatdict = obs_to_dict(maybe_dict_obs)
         for k in keys:
@@ -133,15 +134,26 @@ def _subproc_worker(pipe, parent_pipe, env_fn_wrapper, obs_bufs, obs_shapes, obs
         while True:
             cmd, data = pipe.recv()
             if cmd == 'reset':
-                pipe.send(_write_obs(env.reset()))
+                result = env.reset()
+                if len(result) == 2:
+                    obs, _info = result
+                else:                   
+                    obs = result
+                pipe.send(_write_obs(obs))
             elif cmd == 'step':
-                obs, reward, done, info = env.step(data)
+                result = env.step(data)
+                if len(result) == 5:
+                    obs, reward, terminated, truncated, info = result
+                    done = terminated or truncated
+                else:
+                    obs, reward, done, info = result
                 if done:
                     final_obs = obs
                     if isinstance(obs, dict):
                         final_obs = obs['observation']
                     info['final_obs'] = final_obs
-                    obs = env.reset()
+                    tmp = env.reset()
+                    obs = tmp[0] if (isinstance(tmp, tuple) and len(tmp)==2) else tmp
                 pipe.send((_write_obs(obs), reward, done, info))
             elif cmd == 'render':
                 pipe.send(env.render(mode=data[0], **data[1]))

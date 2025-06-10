@@ -1,11 +1,18 @@
 import numpy as np
 from modril.toy.utils import norm_state, denorm_state
-from gym.envs.mujoco import mujoco_env
+from gym.envs.mujoco.mujoco_env import MujocoEnv
 from gym import error, logger, spaces
+from gym.utils import seeding
 import torch
 from gym import Env
 from gym.spaces import Box
 from collections import deque
+
+def mujoco_seed(self, seed=None):
+    self.np_random, seed = seeding.np_random(seed)
+    return [seed]
+
+setattr(MujocoEnv, 'seed', mujoco_seed)
 
 
 class Environment1DDynamic:
@@ -363,6 +370,7 @@ class ProxyEnv(Env):
 
     def __str__(self):
         return '{}({})'.format(type(self).__name__, self.wrapped_env)
+
 class NormalizedBoxEnv(ProxyEnv):
     """
     Normalize action to in [-1, 1].
@@ -411,10 +419,10 @@ class NormalizedBoxEnv(ProxyEnv):
         scaled_action = np.clip(scaled_action, lb, ub)
 
         wrapped_step = self._wrapped_env.step(scaled_action)
-        next_obs, reward, done, info = wrapped_step
+        next_obs, reward, done, truncated, info = wrapped_step
         if self._should_normalize:
             next_obs = self._apply_normalize_obs(next_obs)
-        return next_obs, reward * self._reward_scale, done, info
+        return next_obs, reward * self._reward_scale, done, truncated, info
 
     def __str__(self):
         return "Normalized: %s" % self._wrapped_env
@@ -438,7 +446,7 @@ class SineEnv:
         self.step_count = 0
 
     def seed(self, seed=0):
-        mujoco_env.MujocoEnv.seed(self, seed)
+        MujocoEnv.seed(self, seed)
 
     def get_reward(self, predicted_y, true_y):
         # Calculate the reward based on the prediction error
@@ -448,7 +456,7 @@ class SineEnv:
         index = np.random.choice(self.data.shape[0], size=1)
         state_action = self.data[index]
         state, action = state_action[:, 0], state_action[:, 1]
-        return state
+        return state, {}
 
     def step(self, state):
         # next_state = torch.tensor([np.random.choice(self.x_coordinates)])
@@ -462,7 +470,7 @@ class SineEnv:
             done = True
             self.step_count = 0
         # state = torch.tensor(state).to(torch.float32).reshape(-1,1)
-        return state, 0, done, {}
+        return state, 0, done, False, {}
 
     def render(self):
         pass

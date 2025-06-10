@@ -34,7 +34,7 @@ parameters:
   save-interval:
     value: 100
   traj-load-path:
-    value: ./expert_datasets/sine.pt
+    value: modril/expert_datasets/sine.pt
   lr:
     value: 1e-6
   disc-lr:
