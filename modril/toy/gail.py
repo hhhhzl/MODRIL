@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, \
+    _jacobian_frobenius, _hutchinson_div
 import numpy as np
 from modril.modril.model_base_diffusion import MBDScore
 from modril.toy.utils import dynamic_convert
@@ -293,7 +294,8 @@ class GAIL_MBD:
             device='cuda',
             mbd_kwargs: dict | None = None
     ):
-        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim, **(mbd_kwargs or {}))
+        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim,
+                            **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
         self.state_dim = state_dim
@@ -339,8 +341,9 @@ class GAIL_MBD:
             dones=[False] * len(agent_s)
         ))
 
+
 class GAIL_FlowShare:
-    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-6, gamma_stab=1e-8):
+    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-4, gamma_stab=1.05e-10):
         self.device, self.agent = device, agent
         self.beta_anti, self.gamma_stab = beta_anti, gamma_stab
         self.field = CoupledFlowMatching(state_dim, action_dim).to(device)

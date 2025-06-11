@@ -174,7 +174,7 @@ class Trainer:
                 v_c, r = estimator.net(mix_a, s_mix, t)
                 loss_anti = _hutchinson_div(mix_a, r, k=1).square().mean()
                 j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
-                loss = loss_fm + loss_A + 1e-4 * loss_anti + 2.3e-10 * j_pen
+                loss = loss_fm + loss_A + 1e-4 * loss_anti + 1.1e-10 * j_pen
             else:
                 loss = estimator.deen_loss(x0)
 
