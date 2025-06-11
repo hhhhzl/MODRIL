@@ -1,5 +1,6 @@
 from rlf.il import TrajSaver
 
+
 class GoalTrajSaver(TrajSaver):
     def __init__(self, save_dir, assert_saved):
         self.assert_saved = assert_saved
