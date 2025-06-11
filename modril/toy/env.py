@@ -1,18 +1,10 @@
 import numpy as np
 from modril.toy.utils import norm_state, denorm_state
-from gym.envs.mujoco.mujoco_env import MujocoEnv
-from gym import error, logger, spaces
-from gym.utils import seeding
+from gym import spaces
 import torch
 from gym import Env
 from gym.spaces import Box
-from collections import deque
 
-# def mujoco_seed(self, seed=None):
-#     self.np_random, seed = seeding.np_random(seed)
-#     return [seed]
-
-# setattr(MujocoEnv, 'seed', mujoco_seed)
 
 
 class Environment1DDynamic:

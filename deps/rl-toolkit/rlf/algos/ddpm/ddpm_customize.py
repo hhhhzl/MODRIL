@@ -52,7 +52,7 @@ one_minus_alphas_bar_sqrt = torch.sqrt(1 - alphas_prod)
 assert alphas.shape == alphas_prod.shape == alphas_prod_p.shape == \
        alphas_bar_sqrt.shape == one_minus_alphas_bar_log.shape \
        == one_minus_alphas_bar_sqrt.shape
-print("all the same shape", betas.shape)
+# print("all the same shape", betas.shape)
 
 
 ########### decide the sample during definite diffusion process

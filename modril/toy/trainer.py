@@ -2,14 +2,13 @@ import torch
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from modril.toy.policy import PPO
-from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL
-from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity
+from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL, GAIL_FlowShare
+from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
 import numpy as np
 from modril.toy.utils import create_env
 import random
-from time import time
-from modril.toy.flowril import GAIL_FlowV2, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
 from modril.toy import TASK_REGISTRY
+from time import time
 
 seed = 1234
 random.seed(seed)
@@ -122,7 +121,7 @@ class Trainer:
             self.trainer = GAIL_Flow(self.agent, self.state_dim, self.action_dim, device=self.device, mode=method,
                                      lr=1e-3)
         elif method == 'flowril':
-            self.trainer = GAIL_FlowV2(self.agent, self.state_dim, self.action_dim, device=self.device, lr=1e-3)
+            self.trainer = GAIL_FlowShare(self.agent, self.state_dim, self.action_dim, device=self.device, lr=1e-3)
         elif method == 'ebgail':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
@@ -175,7 +174,7 @@ class Trainer:
                 v_c, r = estimator.net(mix_a, s_mix, t)
                 loss_anti = _hutchinson_div(mix_a, r, k=1).square().mean()
                 j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
-                loss = loss_fm + loss_A + 1e-4 * loss_anti + 2.4e-10 * j_pen
+                loss = loss_fm + loss_A + 1e-4 * loss_anti + 2.3e-10 * j_pen
             else:
                 loss = estimator.deen_loss(x0)
 

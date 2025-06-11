@@ -1,7 +1,6 @@
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
 import numpy as np
 from modril.modril.model_base_diffusion import MBDScore
 from modril.toy.utils import dynamic_convert
@@ -339,3 +338,74 @@ class GAIL_MBD:
             next_states=next_s,
             dones=[False] * len(agent_s)
         ))
+
+class GAIL_FlowShare:
+    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-6, gamma_stab=1e-8):
+        self.device, self.agent = device, agent
+        self.beta_anti, self.gamma_stab = beta_anti, gamma_stab
+        self.field = CoupledFlowMatching(state_dim, action_dim).to(device)
+        self.opt_field = torch.optim.Adam(self.field.parameters(), lr=lr)
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+
+    def _update_fields(self, s_E, a_E, s_A, a_A):
+        """One gradient step on FM + anti-div + Jacobian‑stab losses."""
+        # ---------------- FM losses ----------------
+        loss_E = self.field.c_fm_loss(s_E, a_E, role="expert")
+        loss_A = self.field.c_fm_loss(s_A, a_A, role="agent")
+
+        mix_s = torch.cat([s_E, s_A], 0)
+        mix_a_raw = torch.cat([a_E, a_A], 0)
+        t_mix = torch.rand_like(mix_a_raw[:, :1])
+
+        mix_a = mix_a_raw.detach().requires_grad_(True)
+        v_c, r_phi = self.field.net(mix_a, mix_s, t_mix)
+        div_r = _hutchinson_div(mix_a, r_phi, k=4)
+        loss_anti = div_r.square().mean()
+        j_pen = _jacobian_frobenius(mix_a, v_c + r_phi).mean()
+        loss = loss_E + loss_A + self.beta_anti * loss_anti + self.gamma_stab * j_pen
+        self.opt_field.zero_grad()
+        loss.backward()
+        self.opt_field.step()
+
+    # ------------------------------------------------------------------
+    def _calc_reward(self, s, a):
+        logp_E = self.field.log_prob(s, a, role="expert")  # [B]
+        logp_A = self.field.log_prob(s, a, role="agent")  # [B]
+        r = logp_E - logp_A
+        r = (r - r.mean()) / (r.std() + 1e-8)
+        return r.detach().cpu().numpy()
+
+    def learn(self, expert_s, expert_a, agent_s, agent_a, next_s):
+        agent_s_np = dynamic_convert(agent_s, self.state_dim)
+        agent_a_np = dynamic_convert(agent_a, self.action_dim)
+
+        s_A = torch.from_numpy(agent_s_np).to(self.device)
+        a_A = torch.from_numpy(agent_a_np).to(self.device)
+        if s_A.dim() == 1:
+            s_A = s_A.unsqueeze(-1)
+        if a_A.dim() == 1:
+            a_A = a_A.unsqueeze(-1)
+
+        expert_s_np = dynamic_convert(expert_s, self.state_dim)
+        expert_a_np = dynamic_convert(expert_a, self.action_dim)
+        s_E = torch.from_numpy(expert_s_np).to(self.device)
+        a_E = torch.from_numpy(expert_a_np).to(self.device)
+        if s_E.dim() == 1:
+            s_E = s_E.unsqueeze(-1)
+        if a_E.dim() == 1:
+            a_E = a_E.unsqueeze(-1)
+
+        self._update_fields(s_E.detach(), a_E.detach(), s_A.detach(), a_A.detach())
+        rewards = self._calc_reward(s_A, a_A)
+        rewards = rewards.squeeze()
+
+        self.agent.update(
+            dict(
+                states=agent_s,
+                actions=agent_a,
+                rewards=rewards,
+                next_states=next_s,
+                dones=[False] * len(agent_s)
+            )
+        )
