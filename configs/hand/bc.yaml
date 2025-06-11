@@ -45,7 +45,7 @@ parameters:
   save-interval:
     value: 100000
   traj-load-path:
-    value: modril/expert_datasets/handRotate_10000.pt
+    value: modril/expert_datasets/hand_10000.pt
   vid-fps:
     value: 100
   seed:
