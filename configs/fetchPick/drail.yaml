@@ -52,9 +52,5 @@ parameters:
     value: 5
   discrim-depth:
     value: 3
-  goal-noise-ratio:
-    value: 1.25
-  noise-ratio:
-    value: 1.25
   seed:
     values: [1,2,3,4,5]

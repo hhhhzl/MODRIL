@@ -17,6 +17,10 @@ FLOWRIL: Flow-Matching Log-Density Occupancy With Reward-Guided Imitation Learni
 ./scripts/install_mujoco_linux.sh
 ./scripts/install_mujoco_py_linux.sh
 ```
+Note: make sure your "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco210/bin" is activate by
+```
+source ~/.bashrc
+```
 #### Environment Setup:
 ```
 ./scripts/setup.sh
@@ -25,7 +29,7 @@ FLOWRIL: Flow-Matching Log-Density Occupancy With Reward-Guided Imitation Learni
   - gym == 0.23.1
   - cython == 0.29.22
   - mujoco-py == 2.1.2.14
-  - mojoco == 3.3.2
+  - mujoco == 3.3.2
 
 ## Datasets & Wandb
 
@@ -38,6 +42,13 @@ FLOWRIL: Flow-Matching Log-Density Occupancy With Reward-Guided Imitation Learni
 ```
 wandb login <YOUR_WANDB_APIKEY>
 ```
+
+#### Test Mojuco && Initial GLFW
+```
+cd ~/.mujoco/mujoco210/bin
+xvfb-run -s "-screen 0 1024x768x24" ./simulate ../model/humanoid.xml
+```
+If you see no error, which means it successfully runs in the virtual screen.
 
 ## Reproduce Our Experiments
 

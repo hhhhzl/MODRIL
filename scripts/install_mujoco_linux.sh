@@ -6,7 +6,7 @@ EXTRACTED_DIR="$MUJOCO_DIR/mujoco210-linux-x86_64"
 TARGET_DIR="$MUJOCO_DIR/mujoco210"
 
 apt update
-apt install -y xvfb
+apt install -y xvfb libglew-dev
 # Create MuJoCo directory
 mkdir -p "$MUJOCO_DIR"
 tar -xf "$TAR_PATH" -C "$MUJOCO_DIR"

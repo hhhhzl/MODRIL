@@ -24,8 +24,6 @@ parameters:
     value: 500
   traj-frac:
     value: 0.5
-  ant-noise:
-    value: 0.01
   action-input:
     value: True
   num-epochs:
