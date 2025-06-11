@@ -10,10 +10,6 @@ from rlf.il.traj_mgr import TrajSaver
 import torch
 import os.path as osp
 from tqdm import tqdm
-from dbc.envs.goal_traj_saver import GoalTrajSaver
-from dbc.envs.goal_check import EasyObsFetchWrapper, SingleFrameStack
-import dbc.envs.fetch
-import dbc.envs.viz
 import torch.optim as optim
 import uuid
 from rlf.rl.model import def_mlp_weight_init
@@ -25,6 +21,11 @@ import matplotlib.pyplot as plt
 from rlf.envs.image_obs_env import ImageObsWrapper
 from rlf.baselines.common.atari_wrappers import WarpFrame
 from rlf.rl.envs import TransposeImage
+
+from modril.envs.goal_traj_saver import GoalTrajSaver
+from modril.envs.goal_check import EasyObsFetchWrapper, SingleFrameStack
+import modril.envs.fetch
+import modril.envs.viz
 
 
 

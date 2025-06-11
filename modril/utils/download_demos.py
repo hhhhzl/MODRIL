@@ -7,7 +7,7 @@ import gdown
 # These datasets are shared by the authors of https://github.com/clvrai/goal_prox_il
 DEMOS = {
     "antReach": [("50", "1ST9_V_ddV4mdbhNnidx3r7BNabHki33m")],
-    "handRotate": [("10000", "1NsZ8FrTIyVvxEiAyTRDtHyzcKfCZNlZu")],
+    "hand": [("10000", "1NsZ8FrTIyVvxEiAyTRDtHyzcKfCZNlZu")],
     "maze2d": [
         ("25", "1Il1SWb0nX8RT796izf-YkqvYyb3ls8yO"),
         ("50", "1xfrhsFQEY__pCYe-6xYmPSkPdyrw-reD"),
@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
     DIR = args.dir
 
-    tasks = ["antReach", "handRotate", "maze2d", "pick", "push"]
+    tasks = ["antReach", "hand", "maze2d", "pick", "push"]
 
     os.makedirs(DIR, exist_ok=True)
 

@@ -1,7 +1,7 @@
 project: 'pick-project'
 program: deps/baselines/main.py
 method: grid
-name: Pick-gail
+name: Pick-drail-un
 command:
   - ${env}
   - python3
@@ -9,11 +9,8 @@ command:
   - ${args}
   - --use-proper-time-limits
 
+
 parameters:
-  prefix:
-    value: gail
-  alg:
-    value: gail
   num-mini-batch:
     value: 32
   entropy-coef:
@@ -24,12 +21,12 @@ parameters:
     value: FetchPickAndPlaceDiffHoldout-v0
   num-env-steps:
     value: 25000000
-  gail-reward-norm:
+  drail-reward-norm:
     value: False
   cuda:
     value: False
   traj-load-path:
-    value: modril/expert_datasets/pick_10000.pt
+    value: modril/expert_datasets/pick_2000.pt
   eval-num-processes:
     value: 1
   num-render:
@@ -40,21 +37,21 @@ parameters:
     value: 1000
   save-interval:
     value: 1000
-  gail-state-norm:
+  drail-state-norm:
     value: True
   lr:
-    value: 0.00005
+    value: 0.0001
   disc-lr:
-    value: 0.00001
+    value: 0.0001
   num-epochs:
     value: 10
-  n-gail-epochs:
+  n-drail-epochs:
     value: 10
   discrim-depth:
     value: 3
-  noise-ratio:
-    value: 1.25
-  goal-noise-ratio:
-    value: 1.25
   seed:
     values: [1,2,3,4,5]
+  prefix:
+    value: drail-un
+  alg:
+    value: drail-un

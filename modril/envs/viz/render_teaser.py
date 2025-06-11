@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, './')
 import gym
-import dbc.envs.viz
+import modril.envs.viz
 from PIL import Image
 
 

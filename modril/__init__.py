@@ -14,7 +14,7 @@ register(
 # AntReach
 register(
     id='AntGoal-v0',
-    entry_point='modril.envs.mojuco.ant:AntGoalEnv',
+    entry_point='modril.envs.mujoco.ant:AntGoalEnv',
     max_episode_steps=50,
 )
 
@@ -23,7 +23,7 @@ register(
 # Hopper (hopper v3)
 # register(
 #     id='HopperCustum-v0',
-#     entry_point='modril.envs.mojuco.hopper:HopperEnv',
+#     entry_point='modril.envs.mujoco.hopper:HopperEnv',
 # )
 
 # Fetch Pick/Push
@@ -39,6 +39,6 @@ from modril.envs.hand import *
 # Humanoid (hopper v3)
 # register(
 #     id='HumanoidCustum-v0',
-#     entry_point='modril.envs.mojuco.humanoid:HumanoidEnv',
+#     entry_point='modril.envs.mujoco.humanoid:HumanoidEnv',
 #     max_episode_steps=50,
 # )

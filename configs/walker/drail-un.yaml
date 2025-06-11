@@ -70,6 +70,6 @@ parameters:
   traj-frac:
     value: 1
   traj-load-path:
-    value: modril/expert_datasets/ppo_walker_5.pt
+    value: modril/expert_datasets/walker.pt
   vid-fps:
     value: 100

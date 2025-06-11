@@ -29,7 +29,7 @@ parameters:
   cuda:
     value: False
   traj-load-path:
-    value: modril/expert_datasets/pick_10000.pt
+    value: modril/expert_datasets/pick_2000.pt
   eval-num-processes:
     value: 1
   num-render:
@@ -52,9 +52,5 @@ parameters:
     value: 5
   discrim-depth:
     value: 3
-  goal-noise-ratio:
-    value: 1.25
-  noise-ratio:
-    value: 1.25
   seed:
     values: [1,2,3,4,5]

@@ -17,9 +17,9 @@ parameters:
   alg:
     value: "bc"
   traj-load-path:
-    value: modril/expert_datasets/push_partial2.pt
+    value: modril/expert_datasets/push_2000.pt
   env-name:
-    value: "FetchPushEnvCustom-v0"
+    value: FetchPushEnvCustom-v0
   normalize-env:
     value: False
   cuda:
@@ -44,9 +44,5 @@ parameters:
     value: 0.2
   lr:
     value: 0.0002
-  noise-ratio:
-    value: 1.25
-  goal-noise-ratio:
-    value: 1.25
   num-env-steps:
     value: 5000000

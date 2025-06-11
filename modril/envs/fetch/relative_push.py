@@ -1,9 +1,9 @@
 import os
 from gym import utils
 import numpy as np
-from dbc.envs import fetch_env
-from dbc.envs.holdout_sampler import HoldoutSampler, LineHoldoutSampler
-from dbc.envs.old_holdout_sampler import OldHoldoutSampler
+from modril.envs import fetch_env
+from modril.envs.holdout_sampler import HoldoutSampler, LineHoldoutSampler
+from modril.envs.old_holdout_sampler import OldHoldoutSampler
 
 
 # Ensure we get the path separator correct on windows

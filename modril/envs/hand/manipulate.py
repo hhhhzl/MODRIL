@@ -4,7 +4,7 @@ import numpy as np
 from gym import utils, error
 from gym.envs.robotics import rotations
 from gym.envs.robotics.utils import robot_get_obs
-from dbc.envs import hand_env
+from modril.envs import hand_env
 
 try:
     import mujoco_py
@@ -21,9 +21,9 @@ def quat_from_angle_and_axis(angle, axis):
 
 
 # Ensure we get the path separator correct on windows
-MANIPULATE_BLOCK_XML = os.path.join('handRotate', 'manipulate_block.xml')
-MANIPULATE_EGG_XML = os.path.join('handRotate', 'manipulate_egg.xml')
-MANIPULATE_PEN_XML = os.path.join('handRotate', 'manipulate_pen.xml')
+MANIPULATE_BLOCK_XML = os.path.join('hand', 'manipulate_block.xml')
+MANIPULATE_EGG_XML = os.path.join('hand', 'manipulate_egg.xml')
+MANIPULATE_PEN_XML = os.path.join('hand', 'manipulate_pen.xml')
 
 
 class ManipulateEnv(hand_env.HandEnv):
@@ -57,7 +57,7 @@ class ManipulateEnv(hand_env.HandEnv):
             distance_threshold (float, in meters): the threshold after which the position of a goal is considered achieved
             rotation_threshold (float, in radians): the threshold after which the rotation of a goal is considered achieved
             n_substeps (int): number of substeps the simulation runs on every call to step
-            relative_control (boolean): whether or not the handRotate is actuated in absolute joint positions or relative to the current state
+            relative_control (boolean): whether or not the hand is actuated in absolute joint positions or relative to the current state
         """
         self.target_position = target_position
         self.target_rotation = target_rotation

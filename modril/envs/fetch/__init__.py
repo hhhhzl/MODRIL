@@ -28,26 +28,26 @@ register(
 
 register(
     id='FetchViz-v0',
-    entry_point='dbc.envs.fetch.custom_fetch:FetchViz',
+    entry_point='modril.envs.fetch.custom_fetch:FetchViz',
     max_episode_steps=50,
     )
 
 
 register(
     id='FetchPushEnvCustom-v0',
-    entry_point='dbc.envs.fetch.custom_push:FetchPushEnvCustom',
+    entry_point='modril.envs.fetch.custom_push:FetchPushEnvCustom',
     max_episode_steps=60,
     )
 
 register(
     id='FetchPushEnvCustom-v1',
-    entry_point='dbc.envs.fetch.relative_push:FetchPushEnvCustom',
+    entry_point='modril.envs.fetch.relative_push:FetchPushEnvCustom',
     max_episode_steps=50,
     )
 
 register(
     id='FetchDebugPushEnv-v0',
-    entry_point='dbc.envs.fetch.custom_push:FetchDebugPushEnv',
+    entry_point='modril.envs.fetch.custom_push:FetchDebugPushEnv',
     max_episode_steps=60,
     )
 

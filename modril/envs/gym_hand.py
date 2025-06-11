@@ -66,10 +66,10 @@ class GymHandInterface(EnvInterface):
         )
 
     def get_add_args(self, parser):
-        parser.add_argument('--handRotate-easy', type=str2bool, default=True)
-        parser.add_argument('--handRotate-dense', type=str2bool, default=True)
-        parser.add_argument('--handRotate-inc-goal', type=str2bool, default=True)
-        parser.add_argument('--handRotate-end-on-succ', type=str2bool, default=True)
+        parser.add_argument('--hand-easy', type=str2bool, default=True)
+        parser.add_argument('--hand-dense', type=str2bool, default=True)
+        parser.add_argument('--hand-inc-goal', type=str2bool, default=True)
+        parser.add_argument('--hand-end-on-succ', type=str2bool, default=True)
         parser.add_argument("--noise-ratio", type=float, default=1.0)
 
 

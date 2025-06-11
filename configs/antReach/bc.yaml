@@ -19,13 +19,11 @@ parameters:
   normalize-env:
     value: False
   traj-load-path:
-    value: modril/expert_datasets/ant_50.pt
+    value: modril/expert_datasets/antReach_50.pt
   bc-num-epochs:
     value: 1000
   eval-num-processes:
     value: 20
-  ant-noise:
-    value: 0.01
   traj-frac:
     value: 0.5
   traj-val-ratio:

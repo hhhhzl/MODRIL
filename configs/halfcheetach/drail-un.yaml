@@ -18,15 +18,13 @@ parameters:
   env-name:
     value: HalfCheetah-v3
   traj-load-path:
-    value: ./expert_datasets/ant_50.pt
+    value: modril/expert_datasets/halfcheetah.pt
   cuda:
     value: True
   num-steps:
     value: 500
   traj-frac:
     value: 0.5
-  ant-noise:
-    value: 0.01
   action-input:
     value: True
   num-epochs:

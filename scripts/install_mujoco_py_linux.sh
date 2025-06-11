@@ -12,7 +12,7 @@ pip install -r requirements.txt
 pip install -r requirements.dev.txt
 pip3 install -e . --no-cache
 
-apt install -y libosmesa6-dev libgl1-mesa-glx libglfw3 libxrandr2 libxinerama1 libxcursor1
+apt install -y libosmesa6-dev libgl1-mesa-glx libgl1-mesa-dev libglfw3 libxrandr2 libxinerama1 libxcursor1
 ln -s /usr/lib/x86_64-linux-gnu/libGL.so.1 /usr/lib/x86_64-linux-gnu/libGL.so
 # If you get an error like: "ln: failed to create symbolic link '/usr/lib/x86_64-linux-gnu/libGL.so': File exists", it's okay to proceed
 # pip3 install -U 'mujoco-py<2.2,>=2.1'

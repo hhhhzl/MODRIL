@@ -16,7 +16,7 @@ parameters:
   alg:
     value: "drail"
   traj-load-path:
-    value: modril/expert_datasets/ppo_walker_5.pt
+    value: modril/expert_datasets/walker.pt
   env-name:
     value: "Walker2d-v3"
   normalize-env:

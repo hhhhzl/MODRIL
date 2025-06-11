@@ -1,7 +1,7 @@
 import sys
 
 sys.path.insert(0, "/")
-
+import d4rl
 from functools import partial
 from rlf.run_settings import RunSettings
 from rlf import run_policy
@@ -45,6 +45,7 @@ from deps.baselines.get_policy import (
     get_deep_iqlearn_policy,
     get_deep_basic_policy
 )
+
 
 
 def get_setup_dict():
