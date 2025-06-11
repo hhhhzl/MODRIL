@@ -29,7 +29,7 @@ parameters:
   traj-val-ratio:
     value: 0
   traj-load-path:
-    value: modril/expert_datasets/pick_10000.pt
+    value: modril/expert_datasets/pick.pt
   normalize-env:
     value: False
   bc-num-epochs:

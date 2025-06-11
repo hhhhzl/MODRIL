@@ -4,15 +4,16 @@ from rlf.rl.utils import save_mp4
 import gym
 import numpy as np
 from functools import partial
-from dbc.envs.goal_traj_saver import GoalTrajSaver
 import os.path as osp
 import uuid
 from tqdm import tqdm
 import argparse
 import torch
-from dbc.envs.goal_check import BlockGripperActionWrapper
 from rlf.args import str2bool
-from dbc.envs.goal_check import EasyObsFetchWrapper
+
+from modril.envs.goal_check import BlockGripperActionWrapper
+from modril.envs.goal_traj_saver import GoalTrajSaver
+from modril.envs.goal_check import EasyObsFetchWrapper
 
 import dbc.envs.fetch
 

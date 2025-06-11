@@ -26,7 +26,7 @@ parameters:
   cuda:
     value: False
   traj-load-path:
-    value: modril/expert_datasets/pick_10000.pt
+    value: modril/expert_datasets/pick_partial3.pt
   eval-num-processes:
     value: 1
   num-render:

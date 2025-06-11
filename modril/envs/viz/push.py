@@ -1,7 +1,7 @@
 import os
 from gym import utils
 #from gym.envs.robotics import fetch_env
-from dbc.envs.viz.base_fetch import FetchEnv
+from modril.envs.viz.base_fetch import FetchEnv
 
 
 # Ensure we get the path separator correct on windows
