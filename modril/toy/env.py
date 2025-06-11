@@ -113,14 +113,14 @@ class Environment1DStatic:
         random sample
         """
         idx = np.random.randint(len(self.x_norm))
-        s0 = float(self.x_norm[idx])
+        s0 = self.x_norm[idx].item()
         self.state = s0
         self.step_count = 0
         return s0
 
-    def step(self, predicted_y: float):
+    def step(self, predicted_y):
         s_scalar = float(self.state)
-        a_scalar = float(predicted_y)
+        a_scalar = predicted_y.item()
         true_y = self.get_true_y(s_scalar)
         error = a_scalar - true_y
         reward = - (error ** 2)
@@ -440,6 +440,7 @@ class SineEnv:
         self.step_count = 0
 
     def seed(self, seed=0):
+        from gym.envs.mujoco import mujoco_env
         mujoco_env.MujocoEnv.seed(self, seed)
 
     def get_reward(self, predicted_y, true_y):
