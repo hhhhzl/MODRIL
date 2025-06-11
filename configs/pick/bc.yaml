@@ -11,11 +11,11 @@ command:
 
 parameters:
   prefix:
-    value: "bc"
+    value: bc
   alg:
-    value: "bc"
+    value: bc
   env-name:
-    value: FetchPickAndPlaceDiffHoldout-v0
+    value: FetchPickAndPlaceDiffHoldout-v0 
   eval-num-processes:
     value: 1
   num-render:
@@ -29,7 +29,7 @@ parameters:
   traj-val-ratio:
     value: 0
   traj-load-path:
-    value: modril/expert_datasets/pick.pt
+    value: modril/expert_datasets/pick_2000.pt
   normalize-env:
     value: False
   bc-num-epochs:

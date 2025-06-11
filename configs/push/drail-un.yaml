@@ -17,7 +17,7 @@ parameters:
   alg:
     value: drail-un
   traj-load-path:
-    value: modril/expert_datasets/push_partial2.pt
+    value: modril/expert_datasets/push_2000.pt
   env-name:
     value: FetchPushEnvCustom-v0
   normalize-env:

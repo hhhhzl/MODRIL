@@ -25,6 +25,10 @@ source ~/.bashrc
 ```
 ./scripts/setup.sh
 ```
+#### Load gym robotics:
+```
+./scripts/copy_gym_robotics.sh
+```
 #### Check for Important Dependencies Version: 
   - gym == 0.23.1
   - cython == 0.29.22

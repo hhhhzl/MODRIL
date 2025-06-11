@@ -13,13 +13,13 @@ parameters:
   seed:
     values: [1, 2, 3, 4, 5]
   prefix:
-    value: "gail"
+    value: gail
   alg:
-    value: "gail"
+    value: gail
   traj-load-path:
-    value: modril/expert_datasets/push_partial2.pt
+    value: modril/expert_datasets/push_2000.pt
   env-name:
-    value: "FetchPushEnvCustom-v0"
+    value: FetchPushEnvCustom-v0
   normalize-env:
     value: True
   cuda:
