@@ -7,7 +7,7 @@ import numpy as np
 
 ENVS = []
 
-for agent in ['halfcheetah', 'hopper', 'walker2d', 'ant']:
+for agent in ['halfcheetah', 'hopper', 'walker2d', 'antReach']:
     for dataset in ['random', 'medium', 'expert', 'medium-replay', 'full-replay', 'medium-expert']:
         ENVS.append(agent+'-'+dataset+'-v1')
 

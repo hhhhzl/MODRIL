@@ -1,4 +1,4 @@
-project: 'fm-project'
+project: 'sine-project'
 program: deps/baselines/main.py
 method: grid
 name: Sine-gail

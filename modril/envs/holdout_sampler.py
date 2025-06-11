@@ -1,6 +1,5 @@
 import numpy as np
 from collections import defaultdict
-from itertools import combinations
 
 class HoldoutSampler:
     def __init__(self, low, high, n_bins, rnd_gen):

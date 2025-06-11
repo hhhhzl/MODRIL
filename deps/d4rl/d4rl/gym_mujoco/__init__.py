@@ -3,7 +3,7 @@ from d4rl.gym_mujoco import gym_envs
 from d4rl import infos
 
 # V1 envs
-for agent in ['hopper', 'halfcheetah', 'ant', 'walker2d']:
+for agent in ['hopper', 'halfcheetah', 'antReach', 'walker2d']:
     for dataset in ['random', 'medium', 'expert', 'medium-expert', 'medium-replay', 'full-replay']:
         env_name = '%s-%s-v1' % (agent, dataset)
         register(
@@ -197,7 +197,7 @@ register(
 )
 
 register(
-    id='ant-medium-expert-v0',
+    id='antReach-medium-expert-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={
@@ -208,7 +208,7 @@ register(
 )
 
 register(
-    id='ant-medium-replay-v0',
+    id='antReach-medium-replay-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={
@@ -219,7 +219,7 @@ register(
 )
 
 register(
-    id='ant-medium-v0',
+    id='antReach-medium-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={
@@ -230,7 +230,7 @@ register(
 )
 
 register(
-    id='ant-random-v0',
+    id='antReach-random-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={
@@ -241,7 +241,7 @@ register(
 )
 
 register(
-    id='ant-expert-v0',
+    id='antReach-expert-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={
@@ -252,7 +252,7 @@ register(
 )
 
 register(
-    id='ant-random-expert-v0',
+    id='antReach-random-expert-v0',
     entry_point='d4rl.gym_mujoco.gym_envs:get_ant_env',
     max_episode_steps=1000,
     kwargs={

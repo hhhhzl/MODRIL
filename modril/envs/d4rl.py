@@ -1,7 +1,6 @@
 from rlf.envs.env_interface import EnvInterface, register_env_interface
 from gym import core
 import rlf.rl.utils as rutils
-from gym.spaces import Box
 import numpy as np
 
 

@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Wrapper for creating the ant environment."""
+"""Wrapper for creating the antReach environment."""
 
 import math
 import numpy as np
@@ -34,8 +34,8 @@ GYM_ASSETS_DIR = os.path.join(
     'assets')
 
 class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
-  """Basic ant locomotion environment."""
-  FILE = os.path.join(GYM_ASSETS_DIR, 'ant.xml')
+  """Basic antReach locomotion environment."""
+  FILE = os.path.join(GYM_ASSETS_DIR, 'antReach.xml')
 
   def __init__(self, file_path=None, expose_all_qpos=False,
                expose_body_coms=None, expose_body_comvels=None, non_zero_reset=False):
@@ -91,7 +91,7 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     # No cfrc observation.
     if self._expose_all_qpos:
       obs = np.concatenate([
-          self.physics.data.qpos.flat[:15],  # Ensures only ant obs.
+          self.physics.data.qpos.flat[:15],  # Ensures only antReach obs.
           self.physics.data.qvel.flat[:14],
       ])
     else:
@@ -127,7 +127,7 @@ class AntEnv(mujoco_env.MujocoEnv, utils.EzPickle):
       reset_location = self._get_reset_location()
       qpos[:2] = reset_location
 
-    # Set everything other than ant to original position and 0 velocity.
+    # Set everything other than antReach to original position and 0 velocity.
     qpos[15:] = self.init_qpos[15:]
     qvel[14:] = 0.
     self.set_state(qpos, qvel)

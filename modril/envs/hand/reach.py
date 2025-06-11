@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from gym import utils
-from dbc.envs import hand_env
+from modril.envs import hand_env
 from gym.envs.robotics.utils import robot_get_obs
 
 
@@ -44,7 +44,7 @@ DEFAULT_INITIAL_QPOS = {
 
 
 # Ensure we get the path separator correct on windows
-MODEL_XML_PATH = os.path.join('hand', 'reach.xml')
+MODEL_XML_PATH = os.path.join('handRotate', 'reach.xml')
 
 
 def goal_distance(goal_a, goal_b):
@@ -116,7 +116,7 @@ class HandReachEnv(hand_env.HandEnv, utils.EzPickle):
         finger_idx = FINGERTIP_SITE_NAMES.index(finger_name)
         assert thumb_idx != finger_idx
 
-        # Pick a meeting point above the hand.
+        # Pick a meeting point above the handRotate.
         meeting_pos = self.palm_xpos + np.array([0.0, -0.09, 0.05])
         meeting_pos += self.np_random.normal(scale=0.005, size=meeting_pos.shape)
 
