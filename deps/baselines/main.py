@@ -47,7 +47,6 @@ from deps.baselines.get_policy import (
 )
 
 
-
 def get_setup_dict():
     return {
         "pwil": (PWIL(), get_ppo_policy),
@@ -105,6 +104,10 @@ class BaselinesSettings(RunSettings):
         parser.add_argument("--depth", type=int, default=2)
         parser.add_argument("--ppo-hidden-dim", type=int, default=64)
         parser.add_argument("--ppo-layers", type=int, default=2)
+
+    def import_add(self):
+        import modril.envs.fetch
+        import modril.envs.goal_check
 
     def get_add_ray_config(self, config):
         if self.base_args.no_wb:
