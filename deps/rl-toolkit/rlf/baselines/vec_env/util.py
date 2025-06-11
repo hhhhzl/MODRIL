@@ -43,7 +43,6 @@ def obs_space_info(obs_space):
     keys = []
     shapes = {}
     dtypes = {}
-    print(subspaces)
     for key, box in subspaces.items():
         keys.append(key)
         shapes[key] = box.shape
