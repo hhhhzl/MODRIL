@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modril.toy.networks import EpsNet, TNet, ODEF, VNet, ConditionalVNet
+from modril.toy.networks import EpsNet, TNet, ODEF, ConditionalVNet, SharedVNet
 from modril.toy.utils import timestep_embed, dynamic_convert
 import torch.nn.functional as F
 from torchdiffeq import odeint
@@ -356,9 +356,101 @@ class DEENDensity(nn.Module):
             retain_graph=True
         )[0]  # [B, dim]
         residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
-        loss = (residual.pow(2).sum(dim=1)).mean()  # 标量
+        loss = (residual.pow(2).sum(dim=1)).mean()
         return loss
 
     def log_energy(self, x):
         with torch.no_grad():
             return self.forward(x)  # [B]
+
+_RNG = torch.Generator()
+
+
+def _rademacher(shape_or_tensor, device=None):
+    """Generate Rademacher (±1) noise matching *shape* or *tensor*."""
+    # --- accept Tensor or torch.Size/tuple ---
+    if isinstance(shape_or_tensor, torch.Tensor):
+        device = shape_or_tensor.device if device is None else device
+        shape = tuple(shape_or_tensor.shape)
+    else:  # shape tuple / torch.Size
+        shape = shape_or_tensor
+        assert device is not None, "device must be specified when passing shape"
+
+    return torch.randint(0, 2, shape, device=device, generator=_RNG).float().mul_(2).sub_(1)
+
+
+def _hutchinson_div(y: torch.Tensor, f: torch.Tensor, k: int = 1) -> torch.Tensor:
+    """ Hutchinson-trace estimator ∇·f with k Rademacher vectors """
+    B, D = y.shape
+    out = 0.0
+    for _ in range(k):
+        v = _rademacher((B, D), device=y.device)
+        (jv,) = torch.autograd.grad(
+            outputs=f,
+            inputs=y,
+            grad_outputs=v,
+            create_graph=True,
+            retain_graph=True,
+        )
+        out = out + (jv * v).sum(dim=-1)
+    return out / k
+
+
+def _jacobian_frobenius(x: torch.Tensor, f: torch.Tensor):
+    """‖∇_x f‖_F² via one Hutchinson vector (cheapest)."""
+    v = _rademacher(x, x.device)
+    (jv,) = torch.autograd.grad(f, x, v, create_graph=True, retain_graph=True, only_inputs=True)
+    return (jv.pow(2)).sum(-1)
+
+
+class CoupledFlowMatching(nn.Module):
+    """v_E = v_c + r_φ,
+    v_π = v_c − r_φ
+    (anti‑symmetric residual).
+    """
+
+    def __init__(self, s_dim: int, a_dim: int, eps: float = 1e-3):
+        super().__init__()
+        self.s_dim, self.a_dim, self.eps = s_dim, a_dim, eps
+        self.net = SharedVNet(s_dim, a_dim, hidden=128)
+        self.prior = torch.distributions.Normal(0., 1.)
+
+    def v_field(self, a_t: torch.Tensor, s: torch.Tensor, t: torch.Tensor, role: str):
+        v_c, r = self.net(a_t, s, t)
+        return v_c + r if role == "expert" else v_c - r
+
+    @staticmethod
+    def _v_star(a_t, a0, t, noise):
+        return noise - a0
+
+    def c_fm_loss(self, s, a0, role):
+        B = a0.size(0)
+        device = a0.device
+        t = torch.rand(B, 1, device=device) * (1 - 2 * self.eps) + self.eps
+        noise = self.prior.sample((B, self.a_dim)).to(device)
+        a_t = (1 - t) * a0 + t * noise
+        v_star = self._v_star(a_t, a0, t, noise)
+        v_pred = self.v_field(a_t, s, t, role)
+        w = (1 - t).pow(2)
+        return (w * F.mse_loss(v_pred, v_star, reduction="none").sum(1, keepdim=True)).mean()
+
+    def log_prob(self, s: torch.Tensor, a0: torch.Tensor, role: str, k_max: int = 1, tau: float = 0.5, n_steps: int = 32
+                 ) -> torch.Tensor:
+        B = a0.size(0)
+        device = a0.device
+        t_grid = torch.linspace(0., 1., n_steps + 1, device=device)
+        delta = 1.0 / n_steps
+
+        log_det = torch.zeros(B, device=device)
+        a_t = a0.detach()
+
+        for k in range(n_steps):
+            t_mid = 0.5 * (t_grid[k] + t_grid[k + 1])
+            a_t = a_t.detach().requires_grad_(True)
+            v_t = self.v_field(a_t, s, t_mid.expand(B, 1), role)
+            div = _hutchinson_div(a_t, v_t)
+            log_det -= delta * div
+            a_t = a_t + v_t.detach() * delta
+
+        logp_prior = self.prior.log_prob(a_t).sum(-1)
+        return logp_prior + log_det
