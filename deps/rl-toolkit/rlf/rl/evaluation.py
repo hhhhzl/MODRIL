@@ -14,22 +14,23 @@ from tqdm import tqdm
 import wandb
 import time
 
+
 def eval_print(
-    env_interface,
-    args,
-    alg_env_settings,
-    policy,
-    vec_norm,
-    total_num_steps,
-    mode,
-    eval_envs,
-    log,
-    final,
+        env_interface,
+        args,
+        alg_env_settings,
+        policy,
+        vec_norm,
+        total_num_steps,
+        mode,
+        eval_envs,
+        log,
+        final,
 ):
     print("Evaluating " + mode)
     args.evaluation_mode = True
-    #ret_info, eval_envs, goal_achieved, eval_step_list
-    eval_info, eval_envs, goal_achieved, _, eval_step_list  = evaluate(
+    # ret_info, eval_envs, goal_achieved, eval_step_list
+    eval_info, eval_envs, goal_achieved, _, eval_step_list = evaluate(
         args,
         alg_env_settings,
         policy,
@@ -47,24 +48,23 @@ def eval_print(
         {"eval_%s_%s" % (mode, k): np.mean(v) for k, v in eval_info.items()},
         total_num_steps,
     )
-    
+
     args.evaluation_mode = False
     return eval_envs, goal_achieved, eval_step_list
 
 
 def train_eval(
-    envs,
-    alg_env_settings,
-    policy,
-    args,
-    log,
-    total_num_steps,
-    env_interface,
-    train_eval_envs,
-    final,
-    algo=None
+        envs,
+        alg_env_settings,
+        policy,
+        args,
+        log,
+        total_num_steps,
+        env_interface,
+        train_eval_envs,
+        final,
+        algo=None
 ):
-
     vec_norm = get_vec_normalize(envs)
 
     train_eval_envs, goal_achieved, eval_step_list = eval_print(
@@ -84,18 +84,17 @@ def train_eval(
 
 
 def full_eval(
-    envs,
-    policy,
-    log,
-    checkpointer,
-    env_interface,
-    args,
-    alg_env_settings,
-    create_traj_saver_fn,
-    vec_norm,
-    train_eval_envs
+        envs,
+        policy,
+        log,
+        checkpointer,
+        env_interface,
+        args,
+        alg_env_settings,
+        create_traj_saver_fn,
+        vec_norm,
+        train_eval_envs
 ):
-    
     args.evaluation_mode = True
     ret_info, envs, goal_achieved, goal_distance, eval_step_list = evaluate(
         args,
@@ -105,7 +104,7 @@ def full_eval(
         env_interface,
         0,
         "final",
-        #envs,
+        # envs,
         train_eval_envs,
         log,
         create_traj_saver_fn,
@@ -115,24 +114,26 @@ def full_eval(
 
     return ret_info, goal_achieved, goal_distance, eval_step_list
 
+
 def evaluate(
-    args,
-    alg_env_settings,
-    policy,
-    true_vec_norm,
-    env_interface,
-    num_steps,
-    mode,
-    eval_envs,
-    log,
-    create_traj_saver_fn,
-    final=False
+        args,
+        alg_env_settings,
+        policy,
+        true_vec_norm,
+        env_interface,
+        num_steps,
+        mode,
+        eval_envs,
+        log,
+        create_traj_saver_fn,
+        final=False
 ):
-    simple_env = ['Sine-v0', 'Sine-v1', 'SCurve-v0', 'Dalmatian-v0', 'Triangle-v0', 'Triangle-v2', 'Rectangle-v0', 'Rectangle-v1']
+    simple_env = ['Sine-v0', 'Sine-v1', 'SCurve-v0', 'Dalmatian-v0', 'Triangle-v0', 'Triangle-v2', 'Rectangle-v0',
+                  'Rectangle-v1']
 
     if args.alg != 'dp' and args.clip_actions:
         ac_tensor = utils.ac_space_to_tensor(policy.action_space)
-    
+
     if args.eval_num_processes is None:
         num_processes = args.num_processes
     else:
@@ -141,8 +142,8 @@ def evaluate(
     if final:
         print("***** final evaluating *****")
         args.num_eval = 1000
-   
-    if eval_envs is None: #or (args.eval_only and args.env_name in simple_env):
+
+    if eval_envs is None:  # or (args.eval_only and args.env_name in simple_env):
         args.force_multi_proc = False
         # rlf.rl.envs.VecPyTorch
         origin_env, eval_envs = make_vec_envs(
@@ -157,10 +158,10 @@ def evaluate(
             alg_env_settings,
             set_eval=True,
         )
- 
+
         # if args.eval_only and args.env_name in simple_env:
         #     eval_envs = origin_env
-    
+
     if args.env_name not in simple_env:
         assert get_vec_normalize(eval_envs) is None, "Norm is manually applied"
 
@@ -174,13 +175,13 @@ def evaluate(
     eval_episode_rewards = []
     eval_def_stats = defaultdict(list)
     ep_stats = defaultdict(list)
-    
+
     result = eval_envs.reset()
     if len(result) == 2:
         obs, _ = result
     else:
         obs = result
-    #obs = state_action[:,0]
+    # obs = state_action[:,0]
 
     hidden_states = {}
     for k, dim in policy.get_storage_hidden_states().items():
@@ -202,7 +203,7 @@ def evaluate(
         )
 
     total_num_eval = num_processes * args.num_eval
-    
+
     # Measure the number of episodes completed
     pbar = tqdm(total=total_num_eval)
     evaluated_episode_count = 0
@@ -220,7 +221,6 @@ def evaluate(
         )
 
     if args.num_render is None or args.num_render > 0:
-
         frames.extend(
             get_render_frames(
                 eval_envs,
@@ -238,7 +238,7 @@ def evaluate(
     is_succ = False
     flag = 0
     count_flag = False
-    step_num = 0 # the number counting time steps
+    step_num = 0  # the number counting time steps
     goal_achieved = []
     goal_distance = []
     eval_step_list = []
@@ -250,13 +250,13 @@ def evaluate(
         y = torch.Tensor()
         true_y_s = torch.Tensor()
     while evaluated_episode_count < total_num_eval:
-        #tmp = time.time()
+        # tmp = time.time()
 
         step_info = get_empty_step_info()
         with torch.no_grad():
             act_obs = obfilt(utils.ob_to_np(obs), update=False)
             act_obs = utils.ob_to_tensor(act_obs, args.device)
-            #import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             ac_info = policy.get_action(
                 utils.get_def_obs(act_obs),
                 utils.get_other_obs(obs),
@@ -264,17 +264,17 @@ def evaluate(
                 eval_masks,
                 step_info,
             )
-            
+
             hidden_states = ac_info.hxs
 
             if args.alg != 'dp' and args.clip_actions:
                 ac_info.clip_action(*ac_tensor)
 
         # Observe reward and next obs
-        next_obs,  _, done, infos = eval_envs.step(ac_info.take_action)
+        next_obs, _, done, infos = eval_envs.step(ac_info.take_action)
 
         if args.env_name in simple_env:
-            #import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             if args.eval_only:
                 x = torch.cat((x, obs.cpu()), dim=0)
             else:
@@ -287,9 +287,9 @@ def evaluate(
             )
         else:
             finished_count = sum([int(d) for d in done])
-            #finished_count = int(infos[0]["goal_achieved"])
-        #print("loop %d if args.eval_save: %d" %(evaluated_episode_count, time.time()-tmp))
-        #tmp = time.time()
+            # finished_count = int(infos[0]["goal_achieved"])
+        # print("loop %d if args.eval_save: %d" %(evaluated_episode_count, time.time()-tmp))
+        # tmp = time.time()
         pbar.update(finished_count)
         evaluated_episode_count += finished_count
 
@@ -302,12 +302,12 @@ def evaluate(
         )
 
         should_render = (args.num_render) is None or (
-            evaluated_episode_count < args.num_render
+                evaluated_episode_count < args.num_render
         )
         if args.render_succ_fails:
             should_render = n_succs < args.num_render or n_fails < args.num_render
-        #print("loop %d args.render_succ_fails: %d" %(evaluated_episode_count, time.time()-tmp))
-        #tmp = time.time()
+        # print("loop %d args.render_succ_fails: %d" %(evaluated_episode_count, time.time()-tmp))
+        # tmp = time.time()
         if should_render:
             if args.env_name == 'maze2d-medium-v2' and flag <= 0:
                 pass
@@ -326,17 +326,17 @@ def evaluate(
                     )
                 )
         obs = next_obs
-        
+
         step_log_vals = utils.agg_ep_log_stats(infos, ac_info.extra)
-        
+
         for k, v in step_log_vals.items():
             ep_stats[k].extend(v)
-        #print("loop %d for k, v in step_log_vals.items(): %d" %(evaluated_episode_count, time.time()-tmp))
-        #tmp = time.time()
+        # print("loop %d for k, v in step_log_vals.items(): %d" %(evaluated_episode_count, time.time()-tmp))
+        # tmp = time.time()
         if args.env_name == 'maze2d-medium-v2':
             if count_flag:
-                flag  = flag - 1
-            
+                flag = flag - 1
+
             if is_succ == False:
                 step_num += 1
                 if args.env_name == 'maze2d-medium-v2':
@@ -346,22 +346,22 @@ def evaluate(
                 if is_succ:
                     flag = 6
                     count_flag = True
-        #print("loop %d if count_flag: %d" %(evaluated_episode_count, time.time()-tmp))
-        #tmp = time.time()
+        # print("loop %d if count_flag: %d" %(evaluated_episode_count, time.time()-tmp))
+        # tmp = time.time()
         if finished_count == 1:
 
             if args.env_name == 'maze2d-medium-v2':
-                #is_succ = step_log_vals["ep_found_goal"][0]
+                # is_succ = step_log_vals["ep_found_goal"][0]
                 goal_achieved.append(is_succ)
                 goal_distance.append(infos[0]["goal_distance"])
-                next_ob =  next_obs.detach().cpu().numpy().squeeze()
+                next_ob = next_obs.detach().cpu().numpy().squeeze()
                 initial = initial_point.detach().cpu().numpy().squeeze()
 
                 eval_step_list.append(step_num)
                 is_succ = False
                 flag = 0
                 count_flag = False
-                step_num = 0 # number counting time-steps return to zero
+                step_num = 0  # number counting time-steps return to zero
 
                 if is_succ:
                     axs[0].scatter(initial[4], initial[5], color='red', edgecolor='white')
@@ -371,10 +371,10 @@ def evaluate(
                 else:
                     axs[1].scatter(initial[4], initial[5], color='red', edgecolor='white')
                     axs[1].scatter(next_ob[4], next_ob[5], color='blue', edgecolor='white')
-                    axs[1].plot([initial[4], next_ob[4]], [initial[5], next_ob[5]],  color='black')
+                    axs[1].plot([initial[4], next_ob[4]], [initial[5], next_ob[5]], color='black')
                     axs[1].title.set_text('fail')
                 plt.savefig('goal.png')
-                plt.close()  
+                plt.close()
 
                 if "ep_success" in step_log_vals and args.render_succ_fails:
                     is_succ = step_log_vals["ep_success"][0]
@@ -390,7 +390,7 @@ def evaluate(
             if args.env_name not in simple_env and args.eval_only:
                 save_frames(frames, 'each', evaluated_episode_count, args)
                 frames = []
-    
+
     if args.env_name in simple_env:
         data = torch.load(args.traj_load_path)
         expert_obs = np.squeeze(data['obs'].numpy())
@@ -404,7 +404,7 @@ def evaluate(
         plt.ylabel('y')
         env_name = args.env_name.lower().replace("-v0", "")
         if args.eval_only:
-            plt.savefig(args.load_file.split('/')[4]+ '_eval_result.png')
+            plt.savefig(args.load_file.split('/')[4] + '_eval_result.png')
         else:
             plt.savefig(args.prefix + '_result_' + args.env_name.lower().replace("-v0", "") + '.png')
         log.log_image("result", args.prefix + '_result_' + env_name + '.png', num_steps)
@@ -412,11 +412,10 @@ def evaluate(
         if args.rollout_agent:
             name = args.load_file.split('/')[-2]
             print("name:", name)
-            #np.savez(env_name + '_' + args.alg + '_.npz', state=x.reshape(-1), action=y.reshape(-1))
+            # np.savez(env_name + '_' + args.alg + '_.npz', state=x.reshape(-1), action=y.reshape(-1))
             np.savez(name + '_' + args.alg + '_.npz', state=x.reshape(-1), action=y.reshape(-1))
 
-
-    #tmp = time.time()
+    # tmp = time.time()
     pbar.close()
     info = {}
     if args.eval_save:
@@ -428,11 +427,11 @@ def evaluate(
     for k, v in ep_stats.items():
         print(" - %s: %.5f" % (k, np.mean(v)))
         ret_info[k] = np.mean(v)
-    
+
     if args.env_name == 'maze2d-medium-v2':
         succ_rate = np.sum(goal_achieved) / args.num_eval
         ret_info['goal_completion'] = succ_rate
-        #print("timestep:", sum(eval_step_list) / len(eval_step_list))
+        # print("timestep:", sum(eval_step_list) / len(eval_step_list))
         ret_info['time_step'] = sum(eval_step_list) / len(eval_step_list)
 
     if args.render_succ_fails:
@@ -440,9 +439,9 @@ def evaluate(
         save_frames(succ_frames, "succ_" + mode, num_steps, args)
         save_frames(fail_frames, "fail_" + mode, num_steps, args)
     else:
-        save_file = save_frames(frames, mode, num_steps, args)      
+        save_file = save_frames(frames, mode, num_steps, args)
 
-    # Switch policy back to train mode
+        # Switch policy back to train mode
     policy.train()
 
     return ret_info, eval_envs, goal_achieved, goal_distance, eval_step_list
@@ -470,15 +469,15 @@ def save_frames(frames, mode, num_steps, args):
 
 
 def get_render_frames(
-    eval_envs,
-    env_interface,
-    obs,
-    next_obs,
-    action,
-    masks,
-    infos,
-    args,
-    evaluated_episode_count,
+        eval_envs,
+        env_interface,
+        obs,
+        next_obs,
+        action,
+        masks,
+        infos,
+        args,
+        evaluated_episode_count,
 ):
     add_kwargs = {}
     if args.render_metric:

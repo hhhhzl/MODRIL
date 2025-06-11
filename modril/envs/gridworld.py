@@ -1,7 +1,6 @@
 from rlf.envs.env_interface import EnvInterface, register_env_interface
-import gym
-from dbc.gym_minigrid.wrappers import *
-from dbc.envs.gw_helper import *
+from modril.gym_minigrid.wrappers import *
+from modril.envs.gw_helper import *
 from rlf.args import str2bool
 
 

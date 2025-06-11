@@ -5,7 +5,7 @@ from d4rl.locomotion import maze_env
 """
 register(
     id='antmaze-umaze-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=700,
     kwargs={
         'maze_map': maze_env.U_MAZE_TEST,
@@ -22,7 +22,7 @@ register(
 
 register(
     id='antmaze-umaze-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=700,
     kwargs={
         'maze_map': maze_env.U_MAZE_TEST,
@@ -38,7 +38,7 @@ register(
 
 register(
     id='antmaze-umaze-diverse-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=700,
     kwargs={
         'maze_map': maze_env.U_MAZE_TEST,
@@ -54,7 +54,7 @@ register(
 
 register(
     id='antmaze-medium-play-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=1000,
     kwargs={
         'maze_map': maze_env.BIG_MAZE_TEST,
@@ -70,7 +70,7 @@ register(
 
 register(
     id='antmaze-medium-diverse-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=1000,
     kwargs={
         'maze_map': maze_env.BIG_MAZE_TEST,
@@ -86,7 +86,7 @@ register(
 
 register(
     id='antmaze-large-diverse-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=1000,
     kwargs={
         'maze_map': maze_env.HARDEST_MAZE_TEST,
@@ -102,7 +102,7 @@ register(
 
 register(
     id='antmaze-large-play-v0',
-    entry_point='d4rl.locomotion.ant:make_ant_maze_env',
+    entry_point='d4rl.locomotion.antReach:make_ant_maze_env',
     max_episode_steps=1000,
     kwargs={
         'maze_map': maze_env.HARDEST_MAZE_TEST,

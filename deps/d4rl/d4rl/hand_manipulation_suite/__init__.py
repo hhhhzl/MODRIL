@@ -116,7 +116,7 @@ register(
 )
 
 
-# Reposition a pen in hand
+# Reposition a pen in handRotate
 register(
     id='pen-v0',
     entry_point='d4rl.hand_manipulation_suite:PenEnvV0',

@@ -5,9 +5,9 @@ from gym import utils, error, spaces
 from gym.envs.robotics.hand import manipulate
 
 # Ensure we get the path separator correct on windows
-MANIPULATE_BLOCK_XML = os.path.join('hand', 'manipulate_block_touch_sensors.xml')
-MANIPULATE_EGG_XML = os.path.join('hand', 'manipulate_egg_touch_sensors.xml')
-MANIPULATE_PEN_XML = os.path.join('hand', 'manipulate_pen_touch_sensors.xml')
+MANIPULATE_BLOCK_XML = os.path.join('handRotate', 'manipulate_block_touch_sensors.xml')
+MANIPULATE_EGG_XML = os.path.join('handRotate', 'manipulate_egg_touch_sensors.xml')
+MANIPULATE_PEN_XML = os.path.join('handRotate', 'manipulate_pen_touch_sensors.xml')
 
 
 class ManipulateTouchSensorsEnv(manipulate.ManipulateEnv):

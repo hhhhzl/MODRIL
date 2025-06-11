@@ -1,11 +1,5 @@
-import os
-import copy
 import numpy as np
-
-import gym
-from gym import error, spaces
-from gym.utils import seeding
-from dbc.envs import robot_env
+from modril.envs import robot_env
 
 
 class HandEnv(robot_env.RobotEnv):

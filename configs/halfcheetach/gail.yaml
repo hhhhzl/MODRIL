@@ -1,34 +1,23 @@
-project: 'modril-project'
+project: 'halfcheetach-project'
 program: deps/baselines/main.py
 method: grid
-name: Ant-gailGP-0.01
-command:
-  - ${env}
-  - python3
-  - ${program}
-  - ${args}
-  - --use-proper-time-limits
-  - --render-metric 
+name: Halfcheetach-gail
 
 parameters:
   prefix:
     value: gail
   alg:
     value: gail
-  disc-grad-pen:
-    value: 1
   env-name:
-    value: AntGoal-v0
+    value: HalfCheetah-v3
   traj-load-path:
-    value: ./expert_datasets/ant_50.pt
+    value: modril/expert_datasets/halfcheetah.pt
   cuda:
     value: True
   num-steps:
     value: 500
   traj-frac:
     value: 0.5
-  ant-noise:
-    value: 0.01
   action-input:
     value: True
   num-epochs:
@@ -45,7 +34,7 @@ parameters:
     value: 0.0001
   ppo-hidden-dim:
     value: 256
-  seed: 
+  seed:
     values: [1,2,3,4,5]
   num-env-steps:
-    value: 10000000
+    value: 5000000

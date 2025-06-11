@@ -11,8 +11,34 @@ register(
     }
 )
 
+# AntReach
 register(
     id='AntGoal-v0',
-    entry_point='modril.envs.ant:AntGoalEnv',
+    entry_point='modril.envs.mojuco.ant:AntGoalEnv',
     max_episode_steps=50,
-    )
+)
+
+# Maze (Import by d4rl)
+
+# Hopper (hopper v3)
+# register(
+#     id='HopperCustum-v0',
+#     entry_point='modril.envs.mojuco.hopper:HopperEnv',
+# )
+
+# Fetch Pick/Push
+from modril.envs.fetch import *
+
+# Halfcheetah
+
+# Walker (Import by gym)
+
+# Handrotate
+from modril.envs.hand import *
+
+# Humanoid (hopper v3)
+# register(
+#     id='HumanoidCustum-v0',
+#     entry_point='modril.envs.mojuco.humanoid:HumanoidEnv',
+#     max_episode_steps=50,
+# )

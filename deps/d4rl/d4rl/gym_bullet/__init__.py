@@ -3,7 +3,7 @@ from d4rl.gym_bullet import gym_envs
 from d4rl import infos
 
 
-for agent in ['hopper', 'halfcheetah', 'ant', 'walker2d']:
+for agent in ['hopper', 'halfcheetah', 'antReach', 'walker2d']:
     register(
         id='bullet-%s-v0' % agent,
         entry_point='d4rl.gym_bullet.gym_envs:get_%s_env' % agent,

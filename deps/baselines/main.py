@@ -33,11 +33,6 @@ from rlf.algos import (
     PWIL,
     IQLearn
 )
-# from goal_prox.method.discounted_pf import DiscountedProxIL
-# from goal_prox.method.goal_gail_discriminator import GoalGAIL
-# from goal_prox.method.ranked_pf import RankedProxIL
-# from goal_prox.method.uncert_discrim import UncertGAIL
-# from goal_prox.policies.grid_world_expert import GridWorldExpert
 
 from modril.utils.goal_traj_saver import GoalTrajSaver
 from modril.utils.trim_trans import trim_episodes_trans
@@ -64,13 +59,7 @@ def get_setup_dict():
         "bc-deep": (BehavioralCloning(), get_deep_basic_policy),
         "sqil-deep": (SQIL(), get_deep_sac_policy),
         "sac": (SAC(), get_deep_sac_policy),
-        # "uncert-gail": (UncertGAIL(), get_ppo_policy),
-        # "dpf": (DiscountedProxIL(), get_ppo_policy),
-        # "rpf": (RankedProxIL(), get_ppo_policy),
-        # "goal-gail": (GoalGAIL(), get_deep_ddpg_policy),
-        # "gw-exp": (BaseAlgo(), lambda env_name, _: GridWorldExpert()),
 
-        # 跑通 => AntReach, FetchPush/FetchPick, HandRotate, Walker, Hopper, HalfCheetah
         "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
         "gail": (GAIL(), get_ppo_policy),
         "wail": (WAIL(), get_ppo_policy),

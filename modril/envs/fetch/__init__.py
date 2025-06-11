@@ -2,26 +2,26 @@ from gym.envs.registration import register
 
 register(
     id='FetchPickAndPlaceCustom-v0',
-    entry_point='dbc.envs.fetch.custom_fetch:FetchPickAndPlaceCustom',
+    entry_point='modril.envs.fetch.custom_fetch:FetchPickAndPlaceCustom',
     max_episode_steps=50,
     )
 
 register(
     id='FetchPickAndPlaceHarder-v0',
-    entry_point='dbc.envs.fetch.custom_fetch:FetchPickAndPlaceHarder',
+    entry_point='modril.envs.fetch.custom_fetch:FetchPickAndPlaceHarder',
     max_episode_steps=50,
     )
 
 register(
     id='FetchPickAndPlaceDiff-v0',
-    entry_point='dbc.envs.fetch.custom_fetch:FetchPickAndPlaceDiff',
+    entry_point='modril.envs.fetch.custom_fetch:FetchPickAndPlaceDiff',
     max_episode_steps=50,
     )
 
 
 register(
     id='FetchPickAndPlaceDiffHoldout-v0',
-    entry_point='dbc.envs.fetch.custom_fetch:FetchPickAndPlaceDiffHoldout',
+    entry_point='modril.envs.fetch.custom_fetch:FetchPickAndPlaceDiffHoldout',
     max_episode_steps=50,
     )
 

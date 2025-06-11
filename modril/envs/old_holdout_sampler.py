@@ -1,6 +1,7 @@
 import numpy as np
 from itertools import combinations
 
+
 class OldHoldoutSampler:
     def __init__(self, low, high, n_bins):
         low = np.array(low)

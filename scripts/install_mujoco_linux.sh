@@ -1,7 +1,7 @@
 #!/bin/bash
 
 MUJOCO_DIR="$HOME/.mujoco"
-TAR_PATH="../assets/mujoco/linux/mujoco210-linux-x86_64.tar.gz"
+TAR_PATH="./assets/mujoco/linux/mujoco210-linux-x86_64.tar.gz"
 EXTRACTED_DIR="$MUJOCO_DIR/mujoco210-linux-x86_64"
 TARGET_DIR="$MUJOCO_DIR/mujoco210"
 

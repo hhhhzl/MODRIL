@@ -1,6 +1,6 @@
 import numpy as np
 
-from dbc.envs import robot_env
+from modril.envs import robot_env
 from gym.envs.robotics import rotations, utils
 
 

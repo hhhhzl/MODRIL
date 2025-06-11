@@ -1,14 +1,14 @@
-project: 'modril-project'
+project: 'halfcheetach-project'
 program: deps/baselines/main.py
 method: grid
-name: Ant-drail-un-0.01
+name: Halfcheetach-drail-un
 command:
   - ${env}
   - python3
   - ${program}
   - ${args}
   - --use-proper-time-limits
-  - --render-metric 
+  - --render-metric
 
 parameters:
   prefix:
@@ -16,7 +16,7 @@ parameters:
   alg:
     value: drail-un
   env-name:
-    value: AntGoal-v0
+    value: HalfCheetah-v3
   traj-load-path:
     value: ./expert_datasets/ant_50.pt
   cuda:
@@ -40,16 +40,32 @@ parameters:
   lr:
     value: 0.0001
   disc-lr:
-    value: 0.0001
+    value: 0.0002
   discrim-num-unit:
     value: 1024
-  depth: 
+  depth:
     value: 4
   ppo-hidden-dim:
     value: 256
-  seed: 
+  seed:
     values: [1,2,3,4,5]
   reward-type:
     value: "airl"
+  eval-num-processes:
+    value: 1
+  num-render:
+    value: 1
+  num-eval:
+    value: 100
+  eval-interval:
+    value: 100
+  save-interval:
+    value: 100
+  drail-state-norm:
+    value: True
+  n-drail-epochs:
+    value: 5
+  discrim-depth:
+    value: 2
   num-env-steps:
-    value: 10000000
+    value: 5000000
