@@ -3,6 +3,7 @@ from rlf.policies.base_net_policy import BaseNetPolicy
 from rlf.policies.basic_policy import BasicPolicy
 from rlf.policies.solve_policy import SolvePolicy
 from rlf.policies.random_policy import RandomPolicy
+from rlf.policies.flow_policy import FlowPolicy
 from rlf.policies.actor_critic.dist_actor_critic import DistActorCritic
 from rlf.policies.actor_critic.reg_actor_critic import RegActorCritic
 from rlf.policies.actor_critic.dist_actor_q import DistActorQ

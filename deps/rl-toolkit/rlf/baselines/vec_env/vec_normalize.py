@@ -59,10 +59,10 @@ class VecNormalize(VecEnvWrapper):
         if self.ob_rms_dict:
             for k, ob_rms in self.ob_rms_dict.items():
                 if k is None:
-                    ob_rms.update(obs)
+                    ob_rms.update(obs,,
                     obs = np.clip((obs - ob_rms.mean) / np.sqrt(ob_rms.var + self.epsilon), -self.clipob, self.clipob)
                 else:
-                    ob_rms.update(obs[k])
+                    ob_rms.update(obs[k],,
                     obs[k] = np.clip((obs[k] - ob_rms.mean) / np.sqrt(ob_rms.var + self.epsilon), -self.clipob, self.clipob)
             return obs
         else:

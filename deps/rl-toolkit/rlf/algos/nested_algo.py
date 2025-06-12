@@ -78,7 +78,7 @@ class NestedAlgo(BaseAlgo):
 
     def get_add_args(self, parser):
         for module in self.modules:
-            module.get_add_args(parser)
+            module.get_add_args()
 
     def on_traj_finished(self, traj):
         for module in self.modules:
@@ -92,15 +92,15 @@ class NestedAlgo(BaseAlgo):
         log_vals = {}
         if adm_first_freeze and t <= 0.1:
             module = self.modules[1]
-            add_log_vals = module.update(storage, beginning, t)
+            add_log_vals = module.update(storage, beginning, t, )
             log_vals = {**log_vals, **add_log_vals}
         else:
             # modules : [adm.adm.ADMDiscrim] and [rlf.algos.on_policy.ppo.PPO]
             if args.freeze_policy:
-                add_log_vals = self.modules[0].update(storage, beginning, t)
+                add_log_vals = self.modules[0].update(storage, beginning, t, )
                 log_vals = {**log_vals, **add_log_vals}
             else:
                 for module in self.modules:
-                    add_log_vals = module.update(storage, beginning, t)
+                    add_log_vals = module.update(storage, beginning, t, )
                     log_vals = {**log_vals, **add_log_vals}
         return log_vals

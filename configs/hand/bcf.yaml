@@ -1,0 +1,54 @@
+project: 'hand-project'
+program: deps/baselines/main.py
+method: grid
+name: Hand-bcf
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+  - --use-proper-time-limits
+
+parameters:
+  alg:
+    value: bcf
+  bc-num-epochs:
+    value: 5000
+  bc-state-norm:
+    value: True
+  clip-actions:
+    value: True
+  cuda:
+    value: True
+  depth:
+    value: 3
+  env-name:
+    value: CustomHandManipulateBlockRotateZ-v0
+  eval-interval:
+    value: 3000
+  eval-num-processes:
+    value: 10
+  hidden-dim:
+    value: 512
+  log-interval:
+    value: 1000
+  lr:
+    value: 1e-04
+  normalize-env:
+    value: False
+  num-eval:
+    value: 10
+  num-render:
+    value: 0
+  prefix:
+    value: bcf
+  save-interval:
+    value: 100000
+  traj-load-path:
+    value: modril/expert_datasets/hand_10000.pt
+  vid-fps:
+    value: 100
+  seed:
+    values: [1,2,3,4,5]
+  num-env-steps:
+    value: 5000000

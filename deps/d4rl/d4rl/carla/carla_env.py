@@ -1042,7 +1042,7 @@ class CarlaObsDictEnv(OfflineEnv):
         return self.__dict__
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.update(state,,
 
     def __str__(self):
         return '{}({})'.format(type(self).__name__, self.wrapped_env)
@@ -1109,7 +1109,7 @@ class CarlaObsEnv(OfflineEnv):
         return self.__dict__
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.update(state,,
 
     def __str__(self):
         return '{}({})'.format(type(self).__name__, self.wrapped_env)

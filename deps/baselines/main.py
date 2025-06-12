@@ -27,6 +27,7 @@ from rlf.algos import (
     GAIL,
     PPO,
     BehavioralCloning,
+    BehaviorCloneFlowMatching,
     DiffPolicy,
     BehavioralCloningFromObs,
     WAIL,
@@ -43,7 +44,8 @@ from deps.baselines.get_policy import (
     get_deep_ddpg_policy,
     get_deep_sac_policy,
     get_deep_iqlearn_policy,
-    get_deep_basic_policy
+    get_deep_basic_policy,
+    get_bcf_policy
 )
 
 
@@ -61,6 +63,7 @@ def get_setup_dict():
         "sac": (SAC(), get_deep_sac_policy),
 
         "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
+        "bcf": (BehaviorCloneFlowMatching(), get_bcf_policy,),
         "gail": (GAIL(), get_ppo_policy),
         "wail": (WAIL(), get_ppo_policy),
         "iqlean": (IQLearn, get_deep_iqlearn_policy),
