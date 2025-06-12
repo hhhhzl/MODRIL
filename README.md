@@ -29,6 +29,7 @@ source ~/.bashrc
 ```
 ./scripts/copy_gym_robotics.sh
 ```
+Note: you have to reload to source file if you make change under /deps/gym17/robotics
 #### Check for Important Dependencies Version: 
   - gym == 0.23.1
   - cython == 0.29.22
