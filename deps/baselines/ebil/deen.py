@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import os
 from tqdm import tqdm
 import numpy as np
-
+from modril.utils.ema import ema
 
 def str2bool(v):
     return v.lower() == "true"
@@ -78,18 +78,19 @@ if __name__ == "__main__":
     parser.add_argument('--sigma', type=float, default=1e-1)
     parser.add_argument('--num-epoch', type=int, default=8000)
     parser.add_argument('--prefix', type=str, default='')
-    parser.add_argument('--save-path', type=str, default='data/ebm')
+    parser.add_argument('--save-path', type=str, default='data/pre')
     args = parser.parse_args()
     print(f"Hidden dimension = {args.hidden_dim}")
     print(f"Depth = {args.depth}")
 
+    task = "ebm"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 128
     num_epoch = args.num_epoch
 
     env = args.traj_load_path.split('/')[-1][:-3]
-    model_save_path = f'{args.save_path}/{env}/trained_models'
-    image_save_path = f'{args.save_path}/{env}/trained_imgs'
+    model_save_path = f'{args.save_path}/{env}/{task}/trained_models'
+    image_save_path = f'{args.save_path}/{env}/{task}/trained_imgs'
 
     if not os.path.exists(model_save_path):
         os.makedirs(model_save_path, exist_ok=True)
@@ -185,10 +186,14 @@ if __name__ == "__main__":
 
         if t % 500 == 0:
             train_iteration_list = list(range(len(train_loss_list)))
-            plt.plot(train_iteration_list, train_loss_list, color='r')
+            smoothed_ema = ema(train_loss_list, 0.05)
+            plt.figure(figsize=(6, 4))
+            plt.plot(train_iteration_list, train_loss_list, alpha=0.3, label='Origin Loss')
+            plt.plot(train_iteration_list, smoothed_ema, label=f'EMA (α={0.05})', linewidth=2)
             plt.xlabel('Epoch')
             plt.ylabel('Loss')
-            plt.title(env + '_deen_loss')
+            plt.title(env + '_deen_loss (EMA)')
+            plt.legend()
             plt.savefig(f'{image_save_path}/{env}_deen_loss.png')
             plt.close()
 
@@ -196,3 +201,4 @@ if __name__ == "__main__":
             torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen_{t}.pt')
 
     torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen.pt')
+    torch.save(train_loss_list, f'{model_save_path}/{env}_train_loss.pt')
