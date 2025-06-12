@@ -337,7 +337,7 @@ class DEENDensity(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim, 1),
         )
 
     def forward(self, x):
@@ -356,7 +356,7 @@ class DEENDensity(nn.Module):
             retain_graph=True
         )[0]  # [B, dim]
         residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
-        loss = (residual.pow(2).sum(dim=1)).mean()
+        loss = (residual**2).mean() * residual.shape[1]
         return loss
 
     def log_energy(self, x):

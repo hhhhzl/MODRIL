@@ -198,7 +198,7 @@ def iq_update(self, policy_buffer, expert_buffer, logger, step):
                 for i in range(self.args.num_actor_updates):
                     actor_alpha_losses = self.update_actor_and_alpha(obs, logger, step)
 
-            losses.update(actor_alpha_losses,,
+            losses.update(actor_alpha_losses)
 
     if step % self.critic_target_update_frequency == 0:
         if self.args.train.soft_update:

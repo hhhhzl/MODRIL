@@ -20,7 +20,7 @@ MEHTOD_LIST = [
     "drail",
     "mine",
     "nwj",
-    "ebgail",
+    "ebil",
     "fm",
     "flowril"
 ]
