@@ -118,8 +118,8 @@ class RunSettings(MasterClass):
 
     def get_args(self, algo, policy):
         parser = self.get_parser()
-        algo.get_add_args(parser)
-        policy.get_add_args(parser)
+        algo.get_add_args()
+        policy.get_add_args()
 
         if self._preset_args is None:
             args, rest = parser.parse_known_args()
@@ -127,7 +127,7 @@ class RunSettings(MasterClass):
             args, rest = parser.parse_known_args(self._preset_args)
 
         env_parser = argparse.ArgumentParser()
-        get_env_interface(args.env_name)(args).get_add_args(env_parser)
+        get_env_interface(args.env_name)(args).get_add_args()
         env_args, rest = env_parser.parse_known_args(rest)
         # Assign the env args to the main args namespace.
         rutils.update_args(args, vars(env_args))

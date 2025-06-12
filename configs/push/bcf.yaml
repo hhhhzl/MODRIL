@@ -1,0 +1,48 @@
+project: 'push-project'
+program: deps/baselines/main.py
+method: grid
+name: Push-bcf
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+  - --use-proper-time-limits
+
+parameters:
+  seed:
+    values: [1, 2, 3, 4, 5]
+  prefix:
+    value: bcf
+  alg:
+    value: bcf
+  traj-load-path:
+    value: modril/expert_datasets/push_2000.pt
+  env-name:
+    value: FetchPushEnvCustom-v0
+  normalize-env:
+    value: False
+  cuda:
+    value: True
+  eval-num-processes:
+    value: 10
+  num-render:
+    value: 0
+  num-eval:
+    value: 10
+  vid-fps:
+    value: 60
+  log-interval:
+    value: 1
+  save-interval:
+    value: 100000
+  eval-interval:
+    value: 200
+  bc-num-epochs:
+    value: 1000
+  traj-val-ratio:
+    value: 0.2
+  lr:
+    value: 0.0002
+  num-env-steps:
+    value: 5000000

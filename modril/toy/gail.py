@@ -71,7 +71,7 @@ class GAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict)
+        self.agent.update(transition_dict,,
 
 
 class DRAIL:
@@ -125,7 +125,7 @@ class DRAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict)
+        self.agent.update(transition_dict,,
 
 
 class GAIL_MI:
@@ -158,7 +158,7 @@ class GAIL_MI:
                                rewards=rewards,
                                next_states=next_s,
                                dones=[False] * len(agent_s))
-        self.agent.update(transition_dict)
+        self.agent.update(transition_dict,,
 
 
 class GAIL_Flow:
@@ -223,15 +223,13 @@ class GAIL_Flow:
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
         rewards = rewards.squeeze()
 
-        self.agent.update(
-            dict(
-                states=agent_s,
-                actions=agent_a,
-                rewards=rewards,
-                next_states=next_s,
-                dones=[False] * len(agent_s)
-            )
-        )
+        self.agent.update(dict(
+            states=agent_s,
+            actions=agent_a,
+            rewards=rewards,
+            next_states=next_s,
+            dones=[False] * len(agent_s)
+        ),,
 
 
 class EnergyGAIL:
@@ -274,7 +272,7 @@ class EnergyGAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict)
+        self.agent.update(transition_dict,,
 
 
 # ============================================================
@@ -339,7 +337,7 @@ class GAIL_MBD:
             rewards=rewards,
             next_states=next_s,
             dones=[False] * len(agent_s)
-        ))
+        ),,
 
 
 class GAIL_FlowShare:
@@ -403,12 +401,10 @@ class GAIL_FlowShare:
         rewards = self._calc_reward(s_A, a_A)
         rewards = rewards.squeeze()
 
-        self.agent.update(
-            dict(
-                states=agent_s,
-                actions=agent_a,
-                rewards=rewards,
-                next_states=next_s,
-                dones=[False] * len(agent_s)
-            )
-        )
+        self.agent.update(dict(
+            states=agent_s,
+            actions=agent_a,
+            rewards=rewards,
+            next_states=next_s,
+            dones=[False] * len(agent_s)
+        ),,

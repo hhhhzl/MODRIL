@@ -14,6 +14,7 @@ from rlf.algos.il.gaifo import GAIFO
 from rlf.algos.il.gail import GailDiscrim
 from rlf.algos.il.bc import BehavioralCloning
 from rlf.algos.il.bco import BehavioralCloningFromObs
+from rlf.algos.il.bcf import BehaviorCloneFlowMatching
 from rlf.algos.il.bc_pretrain import BehavioralCloningPretrain
 from rlf.algos.nested_algo import NestedAlgo
 from rlf.algos.il.base_irl import BaseIRLAlgo

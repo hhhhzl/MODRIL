@@ -387,3 +387,43 @@ class DoubleQCritic(BaseNet):
         q2, _ = self.Q2(obs_action, None, None)
 
         return q1, q2
+
+
+class VectorNetwork(nn.Module):
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int = 256,
+        time_embed_dim: int = 128,
+    ):
+        super().__init__()
+        self.time_embed = nn.Sequential(
+            weight_init(nn.Linear(1, time_embed_dim), nn.init.orthogonal_, nn.init.zeros_),
+            nn.ReLU(),
+            weight_init(nn.Linear(time_embed_dim, hidden_dim), nn.init.orthogonal_, nn.init.zeros_),
+            nn.ReLU(),
+        )
+        self.state_embed = nn.Sequential(
+            weight_init(nn.Linear(state_dim, hidden_dim), nn.init.orthogonal_, nn.init.zeros_),
+            nn.ReLU(),
+        )
+        self.action_embed = nn.Sequential(
+            weight_init(nn.Linear(action_dim, hidden_dim), nn.init.orthogonal_, nn.init.zeros_),
+            nn.ReLU(),
+        )
+        self.velocity_head = nn.Sequential(
+            weight_init(nn.Linear(hidden_dim*3, hidden_dim), nn.init.orthogonal_, nn.init.zeros_),
+            nn.ReLU(),
+            weight_init(nn.Linear(hidden_dim, action_dim), nn.init.orthogonal_, nn.init.zeros_),
+        )
+        self.apply(no_bias_weight_init)
+
+    def forward(self, x_t: torch.Tensor, s: torch.Tensor, t: torch.Tensor):
+        if t.dim() == 1:
+            t = t.unsqueeze(-1)
+        t_feat = self.time_embed(t)
+        s_feat = self.state_embed(s)
+        x_feat = self.action_embed(x_t)
+        h = torch.cat([s_feat, t_feat, x_feat], dim=-1)
+        return self.velocity_head(h)

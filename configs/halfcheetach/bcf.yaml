@@ -1,0 +1,46 @@
+project: 'halfcheetach-project'
+program: deps/baselines/main.py
+method: grid
+name: HalfCheetah-bcf
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+  - --use-proper-time-limits
+
+parameters:
+  alg:
+    value: bcf
+  bc-num-epochs:
+    value: 1000
+  depth:
+    value: 2
+  hidden-dim:
+    value: 256
+  cuda:
+    value: True
+  env-name:
+    value: HalfCheetah-v3
+  lr:
+    value: 0.0001
+  traj-load-path:
+    value: modril/expert_datasets/halfcheetah.pt
+  seed:
+    values: [1, 2, 3, 4, 5]
+  eval-num-processes:
+    value: 1
+  num-render:
+    value: 1
+  num-eval:
+    value: 100
+  eval-interval:
+    value: 500
+  save-interval:
+    value: 1000
+  traj-val-ratio:
+    value: 0
+  normalize-env:
+    value: False
+  num-env-steps:
+    value: 5000000

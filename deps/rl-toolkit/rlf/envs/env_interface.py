@@ -88,7 +88,7 @@ class EnvInterfaceWrapper(EnvInterface):
                                                    alg_env_settings, args)
 
     def get_add_args(self, parser):
-        self.env_int.get_add_args(parser)
+        self.env_int.get_add_args()
 
 
 g_env_interface = OrderedDict()

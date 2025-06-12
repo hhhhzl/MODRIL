@@ -1,12 +1,12 @@
 from functools import partial
 import torch.nn as nn
 import rlf.algos.ddpm.policy_model as policy_model
-from rlf.policies import BasicPolicy, DistActorCritic
+from rlf.policies import BasicPolicy, DistActorCritic, FlowPolicy
 from rlf.policies.actor_critic.dist_actor_q import (DistActorQ, get_sac_actor,
                                                     get_sac_critic)
 from rlf.policies.actor_critic.reg_actor_critic import RegActorCritic
-from rlf.rl.model import MLPBase, MLPBasic, TwoLayerMlpWithAction
-from modril.utils.models import  GwImgEncoder
+from rlf.rl.model import MLPBase, MLPBasic, TwoLayerMlpWithAction, VectorNetwork
+from modril.utils.models import GwImgEncoder
 
 
 def get_ppo_policy(env_name, args):
@@ -100,4 +100,16 @@ def get_diffusion_policy(env_name, args, is_stoch):
 def get_deep_basic_policy(env_name, args):
     return BasicPolicy(
         get_base_net_fn=lambda i_shape: MLPBase(i_shape[0], False, (512, 512, 256, 128))
+    )
+
+
+def get_bcf_policy(env_name, args):
+    get_velocity_net_fn = lambda state_dim, action_dim: VectorNetwork(
+        state_dim=state_dim,
+        action_dim=action_dim,
+        hidden_dim=args.hidden_dim,
+        time_embed_dim=args.time_embed_dim,
+    )
+    return FlowPolicy(
+        get_base_net_fn=get_velocity_net_fn
     )
