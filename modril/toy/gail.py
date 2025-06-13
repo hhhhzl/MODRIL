@@ -211,11 +211,9 @@ class GAIL_Flow:
         if a_A.dim() == 1:
             a_A = a_A.unsqueeze(-1)
 
-        # xs_E = torch.tensor(np.concatenate([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
         xs_A = torch.cat([s_A, a_A], dim=1)
         self._update_agent_density(s_A.detach(), a_A.detach())
 
-        # with torch.no_grad():
         logp_E = self.E.log_prob(xs_A).detach().cpu().numpy()
         logp_A = self.A.log_prob(xs_A).detach().cpu().numpy()
         rewards = logp_E - logp_A

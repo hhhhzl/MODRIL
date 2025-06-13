@@ -49,17 +49,6 @@ class Discriminator(nn.Module):
             self.net = EpsNet(self.x_dim, self.t_dim, label_dim, hidden=128)
             self.register_buffer("c_pos", F.one_hot(torch.tensor(0), label_dim).float())
             self.register_buffer("c_neg", F.one_hot(torch.tensor(1), label_dim).float())
-
-        elif mode == 'mbd':
-            pass
-        elif mode == 'mine':
-            pass
-        elif mode == 'njw':
-            pass
-        elif mode == 'fford':
-            pass
-        elif mode == 'fm':
-            pass
         else:
             raise ValueError(f"Invalid mode: {mode}")
 

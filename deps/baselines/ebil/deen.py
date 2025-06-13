@@ -157,7 +157,6 @@ if __name__ == "__main__":
         train_loss_list.append(ave_loss)
 
         if t % 1000 == 0:
-            print(t, ":", ave_loss)
             data_np = dataset.cpu().numpy()
             x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
             y_min, y_max = data_np[:, 1].min(), data_np[:, 1].max()
