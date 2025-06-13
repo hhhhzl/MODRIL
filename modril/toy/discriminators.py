@@ -49,17 +49,6 @@ class Discriminator(nn.Module):
             self.net = EpsNet(self.x_dim, self.t_dim, label_dim, hidden=128)
             self.register_buffer("c_pos", F.one_hot(torch.tensor(0), label_dim).float())
             self.register_buffer("c_neg", F.one_hot(torch.tensor(1), label_dim).float())
-
-        elif mode == 'mbd':
-            pass
-        elif mode == 'mine':
-            pass
-        elif mode == 'njw':
-            pass
-        elif mode == 'fford':
-            pass
-        elif mode == 'fm':
-            pass
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
@@ -337,7 +326,7 @@ class DEENDensity(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
+            nn.Linear(hidden_dim, 1),
         )
 
     def forward(self, x):
@@ -356,7 +345,7 @@ class DEENDensity(nn.Module):
             retain_graph=True
         )[0]  # [B, dim]
         residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
-        loss = (residual.pow(2).sum(dim=1)).mean()
+        loss = (residual**2).mean() * residual.shape[1]
         return loss
 
     def log_energy(self, x):

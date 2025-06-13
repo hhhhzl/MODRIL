@@ -122,7 +122,7 @@ class Trainer:
                                      lr=1e-3)
         elif method == 'flowril':
             self.trainer = GAIL_FlowShare(self.agent, self.state_dim, self.action_dim, device=self.device, lr=1e-3)
-        elif method == 'ebgail':
+        elif method == 'ebil':
             self.trainer = EnergyGAIL(self.agent, self.state_dim, self.action_dim, self.hidden_dim, device=self.device)
         elif method == 'modril':
             self.trainer = GAIL_MBD(self.agent, env=self.env, state_dim=self.state_dim, action_dim=self.action_dim,
@@ -200,7 +200,7 @@ class Trainer:
 
     def runner(self):
         # pretrain
-        if (self.pretrain and (self.method in ["ffjord", "fm", "flowril"])) or self.method == 'ebgail':
+        if (self.pretrain and (self.method in ["ffjord", "fm", "flowril"])) or self.method == 'ebil':
             xs_E_full = torch.cat([self.expert_s, self.expert_a], dim=1)  # [N, 2]
             if self.method == "ffjord":
                 density_E = self._pretrain_density(
@@ -216,13 +216,13 @@ class Trainer:
                     xs_E_full,
                     30000
                 )
-            elif self.method == 'ebgail':
+            elif self.method == 'ebil':
                 density_E = self._pretrain_density(
                     self.method,
                     DEENDensity(self.state_dim + self.action_dim, hidden_dim=self.hidden_dim, sigma=0.1).to(
                         self.device),
                     xs_E_full,
-                    10000
+                    30000
                 )
             elif self.method == "flowril":
                 density_E = self._pretrain_density(
@@ -526,7 +526,7 @@ class Trainer:
 if __name__ == '__main__':
     tr = Trainer(
         'sine',
-        'flowril',
+        'ebil',
         env_type='static',
         pretrain=True
     )

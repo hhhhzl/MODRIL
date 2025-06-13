@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, \
-    _jacobian_frobenius, _hutchinson_div
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
 import numpy as np
 from modril.modril.model_base_diffusion import MBDScore
 from modril.toy.utils import dynamic_convert
@@ -71,7 +70,7 @@ class GAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict,,
+        self.agent.update(transition_dict)
 
 
 class DRAIL:
@@ -125,7 +124,7 @@ class DRAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict,,
+        self.agent.update(transition_dict)
 
 
 class GAIL_MI:
@@ -158,7 +157,7 @@ class GAIL_MI:
                                rewards=rewards,
                                next_states=next_s,
                                dones=[False] * len(agent_s))
-        self.agent.update(transition_dict,,
+        self.agent.update(transition_dict)
 
 
 class GAIL_Flow:
@@ -212,24 +211,24 @@ class GAIL_Flow:
         if a_A.dim() == 1:
             a_A = a_A.unsqueeze(-1)
 
-        # xs_E = torch.tensor(np.concatenate([expert_s, expert_a], 1), dtype=torch.float32, device=self.device)
         xs_A = torch.cat([s_A, a_A], dim=1)
         self._update_agent_density(s_A.detach(), a_A.detach())
 
-        # with torch.no_grad():
         logp_E = self.E.log_prob(xs_A).detach().cpu().numpy()
         logp_A = self.A.log_prob(xs_A).detach().cpu().numpy()
         rewards = logp_E - logp_A
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
         rewards = rewards.squeeze()
 
-        self.agent.update(dict(
-            states=agent_s,
-            actions=agent_a,
-            rewards=rewards,
-            next_states=next_s,
-            dones=[False] * len(agent_s)
-        ),,
+        self.agent.update(
+            dict(
+                states=agent_s,
+                actions=agent_a,
+                rewards=rewards,
+                next_states=next_s,
+                dones=[False] * len(agent_s)
+            )
+        )
 
 
 class EnergyGAIL:
@@ -272,7 +271,7 @@ class EnergyGAIL:
             'next_states': next_s,
             'dones': [False] * len(agent_s)
         }
-        self.agent.update(transition_dict,,
+        self.agent.update(transition_dict)
 
 
 # ============================================================
@@ -292,8 +291,7 @@ class GAIL_MBD:
             device='cuda',
             mbd_kwargs: dict | None = None
     ):
-        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim,
-                            **(mbd_kwargs or {}))
+        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim, **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
         self.state_dim = state_dim
@@ -337,11 +335,10 @@ class GAIL_MBD:
             rewards=rewards,
             next_states=next_s,
             dones=[False] * len(agent_s)
-        ),,
-
+        ))
 
 class GAIL_FlowShare:
-    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-4, gamma_stab=1.05e-10):
+    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-6, gamma_stab=1e-8):
         self.device, self.agent = device, agent
         self.beta_anti, self.gamma_stab = beta_anti, gamma_stab
         self.field = CoupledFlowMatching(state_dim, action_dim).to(device)
@@ -401,10 +398,12 @@ class GAIL_FlowShare:
         rewards = self._calc_reward(s_A, a_A)
         rewards = rewards.squeeze()
 
-        self.agent.update(dict(
-            states=agent_s,
-            actions=agent_a,
-            rewards=rewards,
-            next_states=next_s,
-            dones=[False] * len(agent_s)
-        ),,
+        self.agent.update(
+            dict(
+                states=agent_s,
+                actions=agent_a,
+                rewards=rewards,
+                next_states=next_s,
+                dones=[False] * len(agent_s)
+            )
+        )

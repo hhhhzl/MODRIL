@@ -3,7 +3,6 @@ from typing import Any, Callable, Dict, Iterable
 import attr
 import numpy as np
 import rlf.rl.utils as rutils
-from rlf.rl.envs import get_vec_normalize
 from rlf.storage import BaseStorage, RolloutStorage
 
 
