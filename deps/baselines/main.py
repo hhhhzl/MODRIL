@@ -48,6 +48,10 @@ from deps.baselines.get_policy import (
     get_bcf_policy
 )
 
+# has to import for pick\push resize
+import modril.envs.fetch 
+import modril.envs.goal_check
+
 
 def get_setup_dict():
     return {

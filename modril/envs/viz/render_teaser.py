@@ -1,5 +1,8 @@
 import sys
 sys.path.insert(0, './')
+import os
+from mujoco_py import GlfwContext
+GlfwContext(offscreen=True)
 import gym
 import modril.envs.viz
 from PIL import Image
@@ -13,4 +16,4 @@ if __name__ == '__main__':
     for _ in range(10):
         env.sim.step()
     frame = env.render(mode='rgb_array', width=128, height=128)
-    Image.fromarray(frame).save('data/plot/test.png')
+    Image.fromarray(frame).save('data/test.png')

@@ -4,7 +4,7 @@ import attr
 import numpy as np
 import rlf.rl.utils as rutils
 from rlf.storage import BaseStorage, RolloutStorage
-
+from rlf.rl.envs import get_vec_normalize
 
 @attr.s(auto_attribs=True, slots=True)
 class AlgorithmSettings:
