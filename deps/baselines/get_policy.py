@@ -103,12 +103,33 @@ def get_deep_basic_policy(env_name, args):
     )
 
 
-def get_bcf_policy(env_name, args):
-    get_velocity_net_fn = lambda state_dim, action_dim: VectorNetwork(
+def get_bcf_policy(env_name, args, time_embed_dim):
+    if env_name[:9] == 'FetchPush':
+        state_dim = 16
+        action_dim = 3
+    if env_name[:9] == 'FetchPick':
+        state_dim = 16
+        action_dim = 4
+    if env_name[:10] == 'CustomHand':
+        state_dim = 68
+        action_dim = 20
+    if env_name[:4] == 'maze':
+        state_dim = 6
+        action_dim = 2
+    if env_name[:6] == 'Walker':
+        state_dim = 17
+        action_dim = 6
+    if env_name[:11] == 'HalfCheetah':
+        state_dim = 17
+        action_dim = 6
+    if env_name[:7] == 'AntGoal':
+        state_dim = 132
+        action_dim = 8
+    get_velocity_net_fn = VectorNetwork(
         state_dim=state_dim,
         action_dim=action_dim,
         hidden_dim=args.hidden_dim,
-        time_embed_dim=args.time_embed_dim,
+        time_embed_dim=time_embed_dim,
     )
     return FlowPolicy(
         get_base_net_fn=get_velocity_net_fn

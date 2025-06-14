@@ -67,7 +67,7 @@ def get_setup_dict():
         "sac": (SAC(), get_deep_sac_policy),
 
         "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
-        "bcf": (BehaviorCloneFlowMatching(), get_bcf_policy,),
+        "bcf": (BehaviorCloneFlowMatching(), partial(get_bcf_policy, time_embed_dim=128)),
         "gail": (GAIL(), get_ppo_policy),
         "wail": (WAIL(), get_ppo_policy),
         "iqlean": (IQLearn, get_deep_iqlearn_policy),

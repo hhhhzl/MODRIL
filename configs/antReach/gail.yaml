@@ -33,6 +33,8 @@ parameters:
     value: 32
   gail-reward-norm:
     value: True
+  ant-noise:
+    value: 0.0
   entropy-coef:
     value: 0.001
   lr:

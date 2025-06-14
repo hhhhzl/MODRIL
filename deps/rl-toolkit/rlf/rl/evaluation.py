@@ -353,7 +353,9 @@ def evaluate(
             if args.env_name == 'maze2d-medium-v2':
                 # is_succ = step_log_vals["ep_found_goal"][0]
                 goal_achieved.append(is_succ)
-                goal_distance.append(infos[0]["goal_distance"])
+                offset = infos[0]["final_obs"][-2:]    # array([Δx, Δy])
+                goal_d = np.linalg.norm(offset)
+                goal_distance.append(goal_d)
                 next_ob = next_obs.detach().cpu().numpy().squeeze()
                 initial = initial_point.detach().cpu().numpy().squeeze()
 

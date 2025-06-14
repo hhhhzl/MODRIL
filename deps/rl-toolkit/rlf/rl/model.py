@@ -392,8 +392,8 @@ class DoubleQCritic(BaseNet):
 class VectorNetwork(nn.Module):
     def __init__(
         self,
-        state_dim: int,
-        action_dim: int,
+        state_dim: int = None,
+        action_dim: int = None,
         hidden_dim: int = 256,
         time_embed_dim: int = 128,
     ):
