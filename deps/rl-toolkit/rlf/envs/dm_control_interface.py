@@ -157,7 +157,7 @@ class DmControlWrapper(core.Env):
                 self.viewer[mode] = None
             return
         elif self.render_mode_list[mode]['show']:
-            self._get_viewer(mode).update(self.pixels,,
+            self._get_viewer(mode).update(self.pixels)
 
         if self.render_mode_list[mode]['return_pixel']:
             return self.pixels
