@@ -45,6 +45,8 @@ parameters:
     value: 4
   ppo-hidden-dim:
     value: 256
+  ant-noise:
+    value: 0.0
   seed: 
     values: [1,2,3,4,5]
   reward-type:

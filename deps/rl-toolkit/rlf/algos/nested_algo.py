@@ -78,7 +78,7 @@ class NestedAlgo(BaseAlgo):
 
     def get_add_args(self, parser):
         for module in self.modules:
-            module.get_add_args()
+            module.get_add_args(parser)
 
     def on_traj_finished(self, traj):
         for module in self.modules:

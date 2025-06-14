@@ -19,6 +19,8 @@ from rlf.rl.envs import make_vec_envs
 from rlf.rl.evaluation import full_eval
 from rlf.rl.loggers.base_logger import BaseLogger
 from rlf.rl.runner import Runner
+from mujoco_py import GlfwContext
+GlfwContext(offscreen=True)
 
 def init_seeds(args):
     # Set all seeds
@@ -118,8 +120,8 @@ class RunSettings(MasterClass):
 
     def get_args(self, algo, policy):
         parser = self.get_parser()
-        algo.get_add_args()
-        policy.get_add_args()
+        algo.get_add_args(parser)
+        policy.get_add_args(parser)
 
         if self._preset_args is None:
             args, rest = parser.parse_known_args()
@@ -127,7 +129,7 @@ class RunSettings(MasterClass):
             args, rest = parser.parse_known_args(self._preset_args)
 
         env_parser = argparse.ArgumentParser()
-        get_env_interface(args.env_name)(args).get_add_args()
+        get_env_interface(args.env_name)(args).get_add_args(env_parser)
         env_args, rest = env_parser.parse_known_args(rest)
         # Assign the env args to the main args namespace.
         rutils.update_args(args, vars(env_args))

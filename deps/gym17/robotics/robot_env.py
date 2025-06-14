@@ -6,7 +6,7 @@ import gym
 from gym import error, spaces
 from gym.utils import seeding
 from gym.envs.robotics import closer
-from gym.envs.core import GoalEnv
+from gym.envs.robotics.core import GoalEnv
 
 try:
     import mujoco_py

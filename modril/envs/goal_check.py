@@ -1,6 +1,5 @@
 import sys
 sys.path.insert(0, './')
-from gym import core
 from gym import spaces
 from rlf.envs.env_interface import EnvInterface, register_env_interface
 from rlf.envs.fetch_interface import FETCH_REGISTER_STR, GymFetchInterface
@@ -8,6 +7,7 @@ from rlf.envs.image_obs_env import ImageObsWrapper
 import rlf.algos.utils as autils
 import rlf.rl.utils as rutils
 import numpy as np
+from gym.envs.robotics import core
 
 class GoalCheckerWrapper(core.Wrapper):
     def __init__(self, env, goal_check_cond_fn):
@@ -33,7 +33,7 @@ class BlockGripperActionWrapper(core.Wrapper):
     def __init__(self, env):
         super().__init__(env)
         self._max_episode_steps = env._max_episode_steps
-        self._is_success = env.env._is_success
+        self._is_success = env.env.env._is_success
         self.action_space = spaces.Box(
                 high=self.action_space.high[:-1],
                 low=self.action_space.low[:-1],
@@ -120,9 +120,9 @@ class GoalAntInterface(EnvInterface):
 
     def get_add_args(self, parser):
         super().get_add_args(parser)
-        parser.add_argument("--antReach-noise", type=float, default=0.0)
-        parser.add_argument("--antReach-cover", type=int, default=100)
-        parser.add_argument('--antReach-is-expert', action='store_true')
+        parser.add_argument("--ant-noise", type=float, default=0.0)
+        parser.add_argument("--ant-cover", type=int, default=100)
+        parser.add_argument('--ant-is-expert', action='store_true')
 
 
 class GoalFetchInterface(GymFetchInterface):
@@ -139,12 +139,12 @@ class GoalFetchInterface(GymFetchInterface):
         if env.env.block_gripper:
             env = BlockGripperActionWrapper(env)
             def check_goal(env, obs):
-                return env._is_success(
+                return env.env.env.env._is_success(
                         obs['achieved_goal'],
                         obs['desired_goal'])
         else:
             def check_goal(env, obs):
-                return env.env._is_success(
+                return env.env.env._is_success(
                         obs['achieved_goal'],
                         obs['desired_goal'])
         env = GoalCheckerWrapper(env, check_goal)
