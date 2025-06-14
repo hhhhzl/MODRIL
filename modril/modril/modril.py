@@ -194,7 +194,7 @@ class MBDRewardModule(BaseIRLAlgo):
                     self.returns = reward.clone()
 
                 self.returns = self.returns * masks * self.args.gamma + reward
-                self.ret_rms.update(self.returns.cpu().numpy(),,
+                self.ret_rms.update(self.returns.cpu().numpy())
 
                 return reward / np.sqrt(self.ret_rms.var[0] + 1e-8), {}
             else:
