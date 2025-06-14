@@ -156,7 +156,7 @@ def configurable(config_id=None, pickleable=False, config_cache=global_config):
                 kwargs = {**saved_kwargs, **config}
 
                 inst = type(self)(*saved_args, **kwargs)
-                self.__dict__.update(inst.__dict__,,
+                self.__dict__.update(inst.__dict__)
             cls.__setstate__ = __setstate__
 
         return cls
