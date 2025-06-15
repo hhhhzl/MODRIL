@@ -49,7 +49,7 @@ from deps.baselines.get_policy import (
 )
 
 # has to import for pick\push resize
-import modril.envs.fetch 
+import modril.envs.fetch
 import modril.envs.goal_check
 
 
