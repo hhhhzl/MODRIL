@@ -1,6 +1,7 @@
 import sys
 
 sys.path.insert(0, "/")
+import d4rl
 from functools import partial
 from rlf.run_settings import RunSettings
 from rlf import run_policy
@@ -40,6 +41,7 @@ from deps.baselines.get_policy import (
     get_ppo_policy,
     get_basic_policy,
     get_diffusion_policy,
+    get_deep_ddpg_policy,
     get_deep_sac_policy,
     get_deep_iqlearn_policy,
     get_deep_basic_policy,
@@ -47,6 +49,8 @@ from deps.baselines.get_policy import (
 )
 
 # has to import for pick\push resize
+import modril.envs.fetch
+import modril.envs.goal_check
 
 
 def get_setup_dict():
@@ -109,7 +113,8 @@ class BaselinesSettings(RunSettings):
         parser.add_argument("--ppo-layers", type=int, default=2)
 
     def import_add(self):
-        pass
+        import modril.envs.fetch
+        import modril.envs.goal_check
 
     def get_add_ray_config(self, config):
         if self.base_args.no_wb:
