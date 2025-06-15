@@ -15,15 +15,14 @@ import os
 
 
 class EBIL(NestedAlgo):
-    def __init__(self, agent_updater=PPO(), get_pretrain=None):
-        super().__init__([EnergyDensity(get_pretrain), agent_updater], 1)
+    def __init__(self, agent_updater=PPO()):
+        super().__init__([EnergyDensity(), agent_updater], 1)
 
 
 class EnergyDensity(BaseIRLAlgo):
-    def __init__(self, get_pretrain):
+    def __init__(self):
         super().__init__()
         self.step = 0
-        self.get_pretrain = get_pretrain
 
     def _create_energy_net(self):
         # Determine state and action dimensions from policy
@@ -146,7 +145,7 @@ class EnergyDensity(BaseIRLAlgo):
             else:
                 return reward, {}
 
-    def _compute_enery_loss(self, agent_batch, expert_batch, obsfilt):
+    def _compute_energy_loss(self, agent_batch, expert_batch, obsfilt):
         expert_batch = expert_batch.to(self.args.device)
         agent_batch = agent_batch.to(self.args.device)
         expert_d = self.energy_net(expert_batch)
@@ -181,7 +180,7 @@ class EnergyDensity(BaseIRLAlgo):
         for _ in range(self.args.n_ebil_epochs):
             for expert_batch, agent_batch in zip(expert_sampler, agent_sampler):
                 expert_batch, agent_batch = self._trans_batches(expert_batch, agent_batch)
-                loss, e_loss, a_loss = self._compute_enery_loss(expert_batch, agent_batch, obsfilt)
+                loss, e_loss, a_loss = self._compute_energy_loss(expert_batch, agent_batch, obsfilt)
                 self.opt.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.energy_net.parameters(), self.args.disc_grad_pen)
@@ -197,6 +196,7 @@ class EnergyDensity(BaseIRLAlgo):
         if self.args.env_name.startswith("Sine") and (self.step % 100 == 0):
             log_vals['_reward_map'] = self.plot_reward_map(self.step)
             log_vals['_disc_val_map'] = self.plot_disc_val_map(self.step)
+            log_vals['_energy_map'] = self.plot_energy_field(self.step)
 
         return log_vals
 
