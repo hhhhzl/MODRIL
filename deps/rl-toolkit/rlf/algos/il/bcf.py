@@ -70,14 +70,15 @@ class BehaviorCloneFlowMatching(BaseILAlgo):
 
     def full_train(self, update_iter=0):
         action_loss = []
+        flow_loss = []
         prev_num = 0
 
         with tqdm(total=self.args.bc_num_epochs) as pbar:
             while self.num_epochs < self.args.bc_num_epochs:
                 super().pre_update(self.num_bc_updates)
                 log_vals = self._bc_step(False)
-                action_loss.append(log_vals['_pr_flow_loss'])
-
+                action_loss.append(log_vals['_action_loss'])
+                flow_loss.append(log_vals['_pr_flow_loss'])
                 pbar.update(self.num_epochs - prev_num)
                 prev_num = self.num_epochs
 
@@ -129,8 +130,9 @@ class BehaviorCloneFlowMatching(BaseILAlgo):
         self._standard_step(loss)
         self.num_bc_updates += 1
         log_dict = {
+            "_total_loss": loss.item(),
             "_pr_flow_loss": flow_loss.item(),
-            "action_loss": action_loss.item(),
+            "_action_loss": action_loss.item(),
         }
         return log_dict
 

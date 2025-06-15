@@ -392,12 +392,15 @@ class DoubleQCritic(BaseNet):
 class VectorNetwork(nn.Module):
     def __init__(
         self,
-        state_dim: int = None,
-        action_dim: int = None,
+        state_dim: int,
+        action_dim: int,
         hidden_dim: int = 256,
         time_embed_dim: int = 128,
     ):
         super().__init__()
+        self.state_dim, self.action_dim = state_dim, action_dim
+        self.hidden_dim = hidden_dim
+        self.time_dim = time_embed_dim
         self.time_embed = nn.Sequential(
             weight_init(nn.Linear(1, time_embed_dim), nn.init.orthogonal_, nn.init.zeros_),
             nn.ReLU(),
