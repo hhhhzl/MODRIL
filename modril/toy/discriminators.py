@@ -226,6 +226,52 @@ class FFJORDDensity(nn.Module):
         return -logp.mean()
 
 
+class DEENDensity(nn.Module):
+    """
+    Denoising Energy Estimator Network (DEEN)
+    for estimating expert(state,action) energy E(s,a)：
+       L = E_{x~ρ_E, y=x+N(0,σ^2I)} || x - y + σ^2 ∇_y E_θ(y) ||^2
+    """
+
+    def __init__(self, dim, hidden_dim=128, sigma=0.1):
+        """
+        """
+        super().__init__()
+        self.dim = dim
+        self.hidden_dim = hidden_dim
+        self.sigma = sigma
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1),
+        )
+
+    def forward(self, x):
+        return self.net(x).squeeze(-1)  # [B]
+
+    def deen_loss(self, x):
+        eps = torch.randn_like(x) * self.sigma  # [B, dim]
+        y = x + eps  # [B, dim]
+
+        y.requires_grad_(True)
+        Ey = self.forward(y)  # [B]
+        grad_y = torch.autograd.grad(
+            outputs=Ey.sum(),
+            inputs=y,
+            create_graph=True,
+            retain_graph=True
+        )[0]  # [B, dim]
+        residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
+        loss = (residual ** 2).mean() * residual.shape[1]
+        return loss
+
+    def log_energy(self, x):
+        with torch.no_grad():
+            return self.forward(x)  # [B]
+
+
 class FlowMatching(nn.Module):
     """
     Ho & Salimans 2023: flow matching
@@ -306,51 +352,6 @@ class FlowMatching(nn.Module):
         logp_prior = self.prior.log_prob(a_t).sum(-1)  # [B]
         return logp_prior + log_det
 
-
-class DEENDensity(nn.Module):
-    """
-    Denoising Energy Estimator Network (DEEN)
-    for estimating expert(state,action) energy E(s,a)：
-       L = E_{x~ρ_E, y=x+N(0,σ^2I)} || x - y + σ^2 ∇_y E_θ(y) ||^2
-    """
-
-    def __init__(self, dim, hidden_dim=128, sigma=0.1):
-        """
-        """
-        super().__init__()
-        self.dim = dim
-        self.hidden_dim = hidden_dim
-        self.sigma = sigma
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-        )
-
-    def forward(self, x):
-        return self.net(x).squeeze(-1)  # [B]
-
-    def deen_loss(self, x):
-        eps = torch.randn_like(x) * self.sigma  # [B, dim]
-        y = x + eps  # [B, dim]
-
-        y.requires_grad_(True)
-        Ey = self.forward(y)  # [B]
-        grad_y = torch.autograd.grad(
-            outputs=Ey.sum(),
-            inputs=y,
-            create_graph=True,
-            retain_graph=True
-        )[0]  # [B, dim]
-        residual = x - y + (self.sigma ** 2) * grad_y  # [B, dim]
-        loss = (residual**2).mean() * residual.shape[1]
-        return loss
-
-    def log_energy(self, x):
-        with torch.no_grad():
-            return self.forward(x)  # [B]
 
 _RNG = torch.Generator()
 

@@ -75,11 +75,12 @@ class FlowMatching(nn.Module):
             state_dim: int,
             action_dim: int,
             hidden_dim: int,
+            depth: int = 4,
             eps: float = 1e-3,
     ):
         super().__init__()
         self.state_dim, self.action_dim = state_dim, action_dim
-        self.net = ConditionalVNet(self.state_dim, self.action_dim, hidden_dim)  # single flow network
+        self.net = ConditionalVNet(self.state_dim, self.action_dim, hidden_dim, depth)  # single flow network
         self.dim = self.state_dim + self.action_dim
         self.prior = torch.distributions.Normal(0, 1)
         self.eps = eps
@@ -148,11 +149,12 @@ class CoupledResidualFM(nn.Module):
             state_dim: int,
             action_dim: int,
             hidden_dim: int,
+            depth: int = 4,
             eps: float = 1e-3
     ):
         super().__init__()
         self.s_dim, self.a_dim, self.eps = state_dim, action_dim, eps
-        self.net = SharedVNet(state_dim, action_dim, hidden=hidden_dim)  # two heads, vector_c + residual
+        self.net = SharedVNet(state_dim, action_dim, hidden=hidden_dim, depth=depth)  # two heads, vector_c + residual
         self.prior = torch.distributions.Normal(0., 1.)
 
     def v_field(self, a_t: torch.Tensor, s: torch.Tensor, t: torch.Tensor, role: str):
@@ -290,6 +292,7 @@ if __name__ == "__main__":
             state_dim=s_dim,
             action_dim=a_dim,
             hidden_dim=args.hidden_dim,
+            depth=args.depth,
             eps=args.eps
         ).to(device)
     elif args.option == '2fs':
@@ -297,6 +300,7 @@ if __name__ == "__main__":
             state_dim=s_dim,
             action_dim=a_dim,
             hidden_dim=args.hidden_dim,
+            depth=args.depth,
             eps=args.eps
         ).to(device)
     else:
