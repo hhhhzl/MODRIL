@@ -19,7 +19,7 @@ def clip_dataset(data, num_transition=10000):
     return trajs
 
 
-target_list = [2000, 5000, 10000]
+target_list = [2000, 5000]
 
 for target in target_list:
     trajs = clip_dataset(traj, target)

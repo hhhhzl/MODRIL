@@ -21,10 +21,10 @@ register(
 # Maze (Import by d4rl)
 
 # Hopper (hopper v3)
-# register(
-#     id='HopperCustum-v0',
-#     entry_point='modril.envs.mujoco.hopper:HopperEnv',
-# )
+register(
+    id='HopperCustum-v0',
+    entry_point='modril.envs.mujoco.hopper:HopperEnv',
+)
 
 # Fetch Pick/Push
 from modril.envs.fetch import *
@@ -37,8 +37,8 @@ from modril.envs.fetch import *
 # from modril.envs.hand import *
 
 # Humanoid (hopper v3)
-# register(
-#     id='HumanoidCustum-v0',
-#     entry_point='modril.envs.mujoco.humanoid:HumanoidEnv',
-#     max_episode_steps=50,
-# )
+register(
+    id='HumanoidCustum-v0',
+    entry_point='modril.envs.mujoco.humanoid:HumanoidEnv',
+    max_episode_steps=50,
+)
