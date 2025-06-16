@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
+from modril.toy.discriminators import Discriminator, MI_Estimator, FFJORDDensity, FlowMatching, CoupledFlowMatching, \
+    _jacobian_frobenius, _hutchinson_div
+from modril.toy.networks import GradNorm2D
 import numpy as np
 from modril.modril.model_base_diffusion import MBDScore
 from modril.toy.utils import dynamic_convert
@@ -291,7 +293,8 @@ class GAIL_MBD:
             device='cuda',
             mbd_kwargs: dict | None = None
     ):
-        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim, **(mbd_kwargs or {}))
+        self.mbd = MBDScore(env, env_name, steps=steps, device=device, state_dim=state_dim, action_dim=action_dim,
+                            **(mbd_kwargs or {}))
         self.agent = agent
         self.device = device
         self.state_dim = state_dim
@@ -337,14 +340,45 @@ class GAIL_MBD:
             dones=[False] * len(agent_s)
         ))
 
+
 class GAIL_FlowShare:
-    def __init__(self, agent, state_dim, action_dim, device, lr=1e-3, beta_anti=1e-6, gamma_stab=1e-8):
+    def __init__(
+            self,
+            agent,
+            state_dim,
+            action_dim,
+            device,
+            lr=1e-3,
+            beta_anti=1e-6,
+            gamma_stab=1e-8,
+            enable_beta=True,
+            enable_gamma=True,
+            auto_params=True
+    ):
         self.device, self.agent = device, agent
         self.beta_anti, self.gamma_stab = beta_anti, gamma_stab
         self.field = CoupledFlowMatching(state_dim, action_dim).to(device)
         self.opt_field = torch.optim.Adam(self.field.parameters(), lr=lr)
         self.state_dim = state_dim
         self.action_dim = action_dim
+
+        self.auto_params = auto_params
+        if self.auto_params:
+            self.gradnorm = GradNorm2D(
+                beta_init=1e-4,
+                gamma_init=1e-5,
+                alpha=0.1,
+                warmup_steps=100,
+                update_freq=10,
+                ema_decay=0.9,
+                beta_min=1e-8,
+                beta_max=1e1,
+                gamma_min=1e-12,
+                gamma_max=1e-2,
+                enable_beta=enable_beta,
+                enable_gamma=enable_gamma
+            ).to(self.device)
+            self.params = list(self.field.net.parameters())
 
     def _update_fields(self, s_E, a_E, s_A, a_A):
         """One gradient step on FM + anti-div + Jacobian‑stab losses."""
@@ -361,7 +395,16 @@ class GAIL_FlowShare:
         div_r = _hutchinson_div(mix_a, r_phi, k=4)
         loss_anti = div_r.square().mean()
         j_pen = _jacobian_frobenius(mix_a, v_c + r_phi).mean()
-        loss = loss_E + loss_A + self.beta_anti * loss_anti + self.gamma_stab * j_pen
+
+        if self.auto_params:
+            loss_reg, beta, gamma = self.gradnorm(loss_anti, j_pen)
+            loss = loss_E + loss_A + loss_reg
+            self.gradnorm.update(loss_anti, j_pen, self.params)
+            self.beta_anti, self.gamma_stab = beta.item(), gamma.item()
+            print(beta.item(), gamma.item())
+        else:
+            loss = loss_E + loss_A + self.beta_anti * loss_anti + self.gamma_stab * j_pen
+
         self.opt_field.zero_grad()
         loss.backward()
         self.opt_field.step()

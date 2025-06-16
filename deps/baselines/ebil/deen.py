@@ -191,13 +191,13 @@ if __name__ == "__main__":
             E = E.cpu().numpy().reshape(X.shape)
 
             fig, ax = plt.subplots(figsize=(6, 6))
-            cf = ax.contourf(X, Y, E, levels=50, cmap='viridis')
+            cf = ax.contourf(X, Y, E, levels=100, cmap='viridis')
             plt.colorbar(cf, ax=ax, label='Energy')
             ax.set_title(f'Energy Field at epoch {t}')
             ax.set_xlabel('dim0')
             ax.set_ylabel('dim1')
             ax.scatter(data_np[:2000, 0], data_np[:2000, 1], s=2, c='white', alpha=0.6, edgecolors='none')
-            plt.savefig(f'{image_save_path}/{env}-energy-epoch{t}.png')
+            plt.savefig(f'{image_save_path}/{env}_energy_epoch{t}.png')
             plt.close()
 
         if t % 500 == 0:

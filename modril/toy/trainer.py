@@ -3,11 +3,13 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from modril.toy.policy import PPO
 from modril.toy.gail import DRAIL, GAIL, GAIL_MI, GAIL_Flow, GAIL_MBD, EnergyGAIL, GAIL_FlowShare
-from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity, CoupledFlowMatching, _jacobian_frobenius, _hutchinson_div
-import numpy as np
-from modril.toy.utils import create_env
-import random
+from modril.toy.discriminators import FFJORDDensity, FlowMatching, DEENDensity, CoupledFlowMatching, \
+    _jacobian_frobenius, _hutchinson_div
 from modril.toy import TASK_REGISTRY
+from modril.toy.utils import create_env
+from modril.toy.networks import GradNorm2D
+import random
+import numpy as np
 from time import time
 
 seed = 1234
@@ -36,11 +38,11 @@ class Trainer:
             lr_d=1e-3,
             pretrain=True,
             env_type='dynamic',
-            child_tqdm=1,
+            enable_beta=True,
+            enable_gamma=True,
             **kwargs
     ):
         self.state_list = None
-        self.child = child_tqdm
         self.device = device
         self.method = method
         # init task
@@ -63,7 +65,6 @@ class Trainer:
         self.state_dim = self.task.state_dim
         self.action_dim = self.task.action_dim
         self.pretrain = pretrain
-
         self.env = create_env(
             self.task_name,
             env_type,
@@ -94,6 +95,23 @@ class Trainer:
         )
         # init GAIL (or variant)
         self._init_trainer(method)
+
+        self.enable_beta = enable_beta
+        self.enable_gamma = enable_gamma
+        self.gradnorm = GradNorm2D(
+            beta_init=1e-4,
+            gamma_init=1e-5,
+            alpha=0.1,
+            warmup_steps=100,
+            update_freq=10,
+            ema_decay=0.9,
+            beta_min=1e-8,
+            beta_max=1e1,
+            gamma_min=1e-12,
+            gamma_max=1e-2,
+            enable_beta=self.enable_beta,
+            enable_gamma=self.enable_gamma
+        ).to(self.device)
 
         # for plot metrics
         self.reward_history = []
@@ -152,8 +170,20 @@ class Trainer:
         opt = torch.optim.Adam(estimator.parameters(), lr=lr)
         estimator.train()
 
+        best_avg = float('inf')
+        plateau = 0
+        window, patience = 200, 1500
+        fm_hist = []
+
+        eps = 1e-8
+        global_scale = 1e-3
+
         running_loss = 0.0
         pbar = tqdm(total=steps, desc=f"Pretraining {self.env_type}-{self.task_name}-{self.method}")
+        params = None
+
+        if method == "flowril":
+            params = list(estimator.net.parameters())
         for step in range(1, steps + 1):
             idx = torch.randint(0, data_t.size(0), (batch,), device=self.device)
             x0 = data_t[idx]
@@ -169,19 +199,67 @@ class Trainer:
                 a_mix = a + 0.1 * torch.randn_like(a)
                 loss_fm = estimator.c_fm_loss(s, a, role="expert")
                 loss_A = estimator.c_fm_loss(s_mix, a_mix, role="agent")
+
                 mix_a = a.detach().requires_grad_(True)
                 t = torch.rand_like(mix_a[:, :1])
                 v_c, r = estimator.net(mix_a, s_mix, t)
-                loss_anti = _hutchinson_div(mix_a, r, k=1).square().mean()
-                j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
-                loss = loss_fm + loss_A + 1e-4 * loss_anti + 1.1e-10 * j_pen
+
+                if self.enable_beta:
+                    loss_anti = _hutchinson_div(mix_a, r, k=1).square().mean()
+                else:
+                    loss_anti = torch.tensor(0.0, device=v_c.device)
+
+                if self.enable_gamma:
+                    j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
+                else:
+                    j_pen = torch.tensor(0.0, device=v_c.device)
+
+                if self.gradnorm.step_count <= self.gradnorm.warmup_steps:
+                    loss_reg = 0
+                    if self.enable_beta:
+                        weight_anti = loss_fm.detach() / (loss_anti.detach() + eps) * global_scale
+                        loss_reg += weight_anti * loss_anti
+                        beta = weight_anti
+                    else:
+                        beta = torch.tensor(0.0, device=loss_anti.device)
+
+                    if self.enable_gamma:
+                        weight_jpen = loss_fm.detach() / (j_pen.detach() + eps) * global_scale
+                        loss_reg += weight_jpen * j_pen
+                        gamma = weight_jpen
+                    else:
+                        gamma = torch.tensor(0.0, device=loss_anti.device)
+                else:
+                    loss_reg, beta, gamma = self.gradnorm(loss_anti, j_pen)
+
+                loss = loss_fm + loss_A + loss_reg
+                estimator.beta = beta.item()
+                estimator.gamma = gamma.item()
+
+                if self.gradnorm.step_count > self.gradnorm.warmup_steps:
+                    self.gradnorm.update(loss_anti, j_pen, params)
+
             else:
                 loss = estimator.deen_loss(x0)
 
             opt.zero_grad()
             loss.backward()
+
             torch.nn.utils.clip_grad_norm_(estimator.parameters(), clip_grad)
             opt.step()
+
+            if method == "flowril":
+                fm_hist.append(loss_fm.item())
+                if len(fm_hist) > window:
+                    fm_hist.pop(0)
+                avg = sum(fm_hist) / len(fm_hist)
+                if avg + 1e-4 < best_avg:
+                    best_avg, plateau = avg, 0
+                else:
+                    plateau += 1
+                if plateau >= patience:
+                    pbar.write(f"[EarlyStop] stop@step {step}, fm_avg={avg:.5f}")
+                    break
 
             running_loss += loss.item()
             if step % log_interval == 0:
@@ -235,6 +313,9 @@ class Trainer:
                 raise
             if self.method == 'flowril':
                 self.trainer.field = density_E
+                self.trainer.beta_anti = density_E.beta
+                self.trainer.gamma_stab = density_E.gamma
+                print(self.trainer.gamma_stab)
             else:
                 self.trainer.E = density_E
 
@@ -522,11 +603,10 @@ class Trainer:
             plt.close()
 
 
-
 if __name__ == '__main__':
     tr = Trainer(
         'sine',
-        'ebil',
+        'flowril',
         env_type='static',
         pretrain=True
     )

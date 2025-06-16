@@ -1,6 +1,5 @@
 from rlf.algos.il.base_irl import BaseIRLAlgo
 import torch
-import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import rlf.rl.utils as rutils
 from collections import defaultdict
@@ -11,7 +10,12 @@ import torch.optim as optim
 import numpy as np
 from rlf.exp_mgr.viz_utils import append_text_to_image
 from modril.flowril.pretrain import FlowMatching, CoupledResidualFM, _jacobian_frobenius, CMAP, PLOT_KW, ALPHA_BG
+from modril.flowril.networks import GradNorm2D
 import os
+
+
+def str2bool(v):
+    return v.lower() == "true"
 
 
 class FLOWRIL(NestedAlgo):
@@ -44,7 +48,30 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             # Load pretrained weights if provided
             if self.args.flow_path:
                 self.flow_net.load_state_dict(torch.load(self.args.flow_path, map_location=self.args.device))
+                for p in self.flow_net.parameters():
+                    p.requires_grad = False
+
             self.opt = optim.Adam(self.flow_net.parameters(), lr=self.args.disc_lr)
+            self.params = list(self.flow_net.parameters())
+            if self.args.params_autotune:
+                self.gradnorm = GradNorm2D(
+                    beta_init=self.args.loss_anti,
+                    gamma_init=self.args.loss_stable,
+                    alpha=0.1,
+                    warmup_steps=100,
+                    update_freq=10,
+                    ema_decay=0.9,
+                    beta_min=1e-8,
+                    beta_max=1e1,
+                    gamma_min=1e-12,
+                    gamma_max=1e-2,
+                    enable_beta=self.args.enable_loss_anti,
+                    enable_gamma=self.args.enable_loss_stable
+                ).to(self.args.device)
+            if not self.args.enable_loss_anti:
+                self.args.loss_anti = 0
+            if not self.args.enable_loss_stable:
+                self.args.loss_stable = 0
         else:
             # two flow nets
             self.flow_net_e = FlowMatching(
@@ -78,6 +105,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         self._create_flow_net()
         self.returns = None
         self.ret_rms = RunningMeanStd(shape=())
+        self.eps = 1e-8
+        self.global_scale = 1e-3
 
     def _get_sampler(self, storage):
         agent_experience = storage.get_generator(None, mini_batch_size=self.expert_train_loader.batch_size)
@@ -188,22 +217,44 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         if self.args.option == "scrf":
             loss_E = self.flow_net.fm_loss(s_E, a_E, role="expert")
             loss_A = self.flow_net.fm_loss(s_A, a_A, role="agent")
+            flow_loss = self.args.expert_loss_rate * loss_E + self.args.agent_loss_rate * loss_A
 
-            mix_s = torch.cat([s_E, s_A], dim=0)
-            mix_a = torch.cat([a_E, a_A], dim=0).detach().requires_grad_(True)
-            t_mix = torch.rand(mix_s.size(0), 1, device=mix_s.device)
+            use_anti = self.args.loss_anti > 0
+            use_stable = self.args.loss_stable > 0
+            if use_anti or use_stable:
+                mix_s = torch.cat([s_E, s_A], dim=0)
+                mix_a = torch.cat([a_E, a_A], dim=0).detach().requires_grad_(True)
+                t_mix = torch.rand(mix_s.size(0), 1, device=mix_s.device)
+                v_c, r = self.flow_net.net(mix_a, mix_s, t_mix)  # vector c and residual
 
-            v_c, r = self.flow_net.net(mix_a, mix_s, t_mix)  # vector c and residual
-            div_r = self.flow_net._hutch_div(mix_a, r, k=1)
-            loss_anti = div_r.square().mean()
-            j_pen = _jacobian_frobenius(mix_a, v_c + r).mean()
+                loss_anti = self.flow_net._hutch_div(mix_a, r, k=1).square().mean() if use_anti else None
+                loss_stable = _jacobian_frobenius(mix_a, v_c + r).mean() if use_stable else None
 
-            flow_loss = (
-                    self.args.expert_loss_rate * loss_E
-                    + self.args.agent_loss_rate * loss_A
-                    + self.args.loss_anti * loss_anti
-                    + self.args.loss_stable * j_pen
-            )
+                if not self.args.params_autotune:  # disable autotune
+                    if use_anti:
+                        flow_loss += self.args.loss_anti * loss_anti
+                    if use_stable:
+                        flow_loss += self.args.loss_stable * loss_stable
+
+                else:
+                    # fintune warmup
+                    if self.gradnorm.step_count <= self.gradnorm.warmup_steps:
+                        reg = 0.0
+                        if self.args.enable_loss_anti and use_anti:
+                            w_anti = loss_E.detach() / (loss_anti.detach() + self.eps) * self.global_scale
+                            reg += w_anti * loss_anti
+                            self.args.loss_anti = w_anti
+                        if self.args.enable_loss_stable and use_stable:
+                            w_st = loss_E.detach() / (loss_stable.detach() + self.eps) * self.global_scale
+                            reg += w_st * loss_stable
+                            self.args.loss_stable = w_st
+                        flow_loss += reg
+
+                    else:
+                        # gradnorm
+                        reg, self.args.loss_anti, self.args.loss_stable = self.gradnorm(loss_anti, loss_stable)
+                        flow_loss += reg
+                        self.gradnorm.update(loss_anti, loss_stable, self.params)
         else:
             loss_E = self.flow_net_e.fm_loss(s_E, a_E)
             loss_A = self.flow_net_a.fm_loss(s_A, a_A)
@@ -418,7 +469,6 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             path3 = self.plot_disc_val_map(step)
             self._disc_plot_path.append(path3)
 
-
     def _finalize_animation(self, input_path, out_path=None):
         if not self.args.save_animation or len(input_path) == 0:
             return None
@@ -457,20 +507,19 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         parser.add_argument('--disc-grad-pen', type=float, default=0.0)
         parser.add_argument('--expert-loss-rate', type=float, default=1.0)
         parser.add_argument('--agent-loss-rate', type=float, default=1.0)
-        parser.add_argument('--flow-loss-rate', type=float, default=0.2)
-        parser.add_argument('--option', type=str, default='scrf',
-                            choices=['scrf', '2fs'])  # stable coupled residual flow / two flow networks
+        parser.add_argument('--option', type=str, default='scrf', choices=['scrf', '2fs'])  # stable coupled residual flow / two flow networks
         parser.add_argument('--hidden-dim', type=int, default=128)
+        parser.add_argument('--enable-loss-anti', type=str2bool, default=True)
+        parser.add_argument('--enable-loss-stable', type=str2bool, default=True)
+        parser.add_argument('--params_autotune', type=str2bool, default=True)  # autotune for 2 parameters
         parser.add_argument('--loss-anti', type=float, default=1e-4)
         parser.add_argument('--loss-stable', type=float, default=1e-6)
-        parser.add_argument('--loss-stable', type=float, default=1e-6)
         parser.add_argument('--flow-loss-rate', type=float, default=0.2)
-        parser.add_argument('--finetune-ve', type=bool, default=False)
+        parser.add_argument('--finetune-ve', type=str2bool, default=False)
         parser.add_argument('--reward-type', type=str, default='raw', help="""
                 Changes the reward computation. Does
                 not change training.
                 """)
-
         # for plot
         parser.add_argument('--plot-during-train', type=bool, default=False)
         parser.add_argument('--save-animation', type=bool, default=False)
