@@ -20,7 +20,6 @@ from rlf.algos import (
     NestedAlgo,
     DRAIL_UN,
     DRAIL,
-    DBC,
     GAIFO,
     SQIL,
     SAC,
@@ -30,20 +29,16 @@ from rlf.algos import (
     BehaviorCloneFlowMatching,
     DiffPolicy,
     BehavioralCloningFromObs,
-    WAIL,
     PWIL,
-    IQLearn
 )
-
+from deps.baselines.ebil.ebil import EBIL
 from modril.utils.goal_traj_saver import GoalTrajSaver
 from modril.utils.trim_trans import trim_episodes_trans
 from deps.baselines.get_policy import (
     get_ppo_policy,
     get_basic_policy,
     get_diffusion_policy,
-    get_deep_ddpg_policy,
     get_deep_sac_policy,
-    get_deep_iqlearn_policy,
     get_deep_basic_policy,
     get_bcf_policy
 )
@@ -69,11 +64,9 @@ def get_setup_dict():
         "bc": (BehavioralCloning(), partial(get_basic_policy, is_stoch=False)),
         "bcf": (BehaviorCloneFlowMatching(), partial(get_bcf_policy, time_embed_dim=128)),
         "gail": (GAIL(), get_ppo_policy),
-        "wail": (WAIL(), get_ppo_policy),
-        "iqlean": (IQLearn, get_deep_iqlearn_policy),
-        "dbc": (DBC(), partial(get_basic_policy, is_stoch=False)),
         "drail-un": (DRAIL_UN(), get_ppo_policy),
         "drail": (DRAIL(), get_ppo_policy),
+        "ebil": (EBIL(), get_ppo_policy),
     }
 
 
