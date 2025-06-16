@@ -1,4 +1,4 @@
-# A baseline town agent.
+# A baselines town agent.
 from agents.navigation.agent import Agent, AgentState
 import numpy as np
 from agents.navigation.local_planner import LocalPlanner

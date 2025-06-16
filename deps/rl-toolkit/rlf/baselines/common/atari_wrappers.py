@@ -165,7 +165,7 @@ class FrameStack(gym.Wrapper):
 
         See Also
         --------
-        baseline.common.atari_wrappers.LazyFrames
+        baselines.common.atari_wrappers.LazyFrames
         """
         gym.Wrapper.__init__(self, env)
         self.k = k

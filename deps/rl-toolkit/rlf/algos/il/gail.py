@@ -5,7 +5,7 @@
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
-
+import os
 from rlf.algos.il.base_irl import BaseIRLAlgo
 import torch
 import torch.nn as nn
@@ -20,9 +20,7 @@ from rlf.algos.on_policy.ppo import PPO
 from rlf.args import str2bool
 import torch.optim as optim
 import numpy as np
-from rlf.rl.model import ConcatLayer
 from rlf.rl.model import InjectNet
-from functools import partial
 from rlf.exp_mgr.viz_utils import append_text_to_image
 
 
@@ -206,6 +204,8 @@ class GailDiscrim(BaseIRLAlgo):
         plt.imshow(reward, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
         file_path = "./data/imgs/" + self.args.prefix + "_reward_map.png"
+        folder = os.path.dirname(file_path)
+        os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
         return file_path
 
@@ -223,6 +223,8 @@ class GailDiscrim(BaseIRLAlgo):
         plt.imshow(reward, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
         file_path = "./data/imgs/" + self.args.prefix + "_disc_val_map.png"
+        folder = os.path.dirname(file_path)
+        os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
         return file_path
 
@@ -267,7 +269,7 @@ class GailDiscrim(BaseIRLAlgo):
 
         for k in log_vals:
             log_vals[k] /= n
-        if self.args.env_name[:4] == "Sine" and (self.step // (self.expert_train_loader.batch_size * n)) % 100 == 1:
+        if self.args.env_name.startswith("Sine") and (self.step // (self.expert_train_loader.batch_size * n)) % 100 == 1:
             # log_vals["_reward_map"] = self.plot_reward_map(self.step)
             log_vals["_disc_val_map"] = self.plot_disc_val_map(self.step)
 

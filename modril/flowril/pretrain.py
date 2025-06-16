@@ -1,4 +1,4 @@
-from modril.flowril.networks import SharedVNet, ConditionalVNet
+from modril.flowril.networks import SharedVNet, ConditionalVNet, GradNorm2D
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
@@ -11,11 +11,7 @@ from modril.utils.ema import ema
 
 _RNG = torch.Generator()
 
-# CMAP = 'cividis'
-CMAP = 'viridis'    # dark blue => yellow/green
-# CMAP = 'inferno'    # black/purple => yellow
-# CMAP = 'coolwarm'   # blue white => red
-# CMAP = 'Spectral'   # colors
+CMAP = 'viridis'
 
 PLOT_KW = dict(density=1.2, linewidth=1, arrowstyle='-|>')
 ALPHA_BG = 0.85
@@ -75,11 +71,12 @@ class FlowMatching(nn.Module):
             state_dim: int,
             action_dim: int,
             hidden_dim: int,
+            depth: int = 4,
             eps: float = 1e-3,
     ):
         super().__init__()
         self.state_dim, self.action_dim = state_dim, action_dim
-        self.net = ConditionalVNet(self.state_dim, self.action_dim, hidden_dim)  # single flow network
+        self.net = ConditionalVNet(self.state_dim, self.action_dim, hidden_dim, depth)  # single flow network
         self.dim = self.state_dim + self.action_dim
         self.prior = torch.distributions.Normal(0, 1)
         self.eps = eps
@@ -148,11 +145,12 @@ class CoupledResidualFM(nn.Module):
             state_dim: int,
             action_dim: int,
             hidden_dim: int,
+            depth: int = 4,
             eps: float = 1e-3
     ):
         super().__init__()
         self.s_dim, self.a_dim, self.eps = state_dim, action_dim, eps
-        self.net = SharedVNet(state_dim, action_dim, hidden=hidden_dim)  # two heads, vector_c + residual
+        self.net = SharedVNet(state_dim, action_dim, hidden=hidden_dim, depth=depth)  # two heads, vector_c + residual
         self.prior = torch.distributions.Normal(0., 1.)
 
     def v_field(self, a_t: torch.Tensor, s: torch.Tensor, t: torch.Tensor, role: str):
@@ -232,6 +230,9 @@ if __name__ == "__main__":
     parser.add_argument('--save-path', type=str, default='data/pre')
 
     # parameters for coupled residual vector loss
+    parser.add_argument('--enable-loss-anti', type=str2bool, default=True)
+    parser.add_argument('--enable-loss-stable', type=str2bool, default=True)
+    parser.add_argument('--autotune', type=str2bool, default=True) # autotune for 2 parameters
     parser.add_argument('--loss-anti', type=float, default=1e-4)
     parser.add_argument('--loss-stable', type=float, default=1e-6)
     args = parser.parse_args()
@@ -285,31 +286,60 @@ if __name__ == "__main__":
     a_dim = actions.shape[1]
 
     # output dimension is state_dim + action_dim，inputs are x and step
+    gradnorm, params = None, None
+    eps = 1e-8
+    global_scale = 1e-3
+
+    # for best step
+    best_avg = float('inf')
+    plateau = 0
+    window, patience = 200, 1500
+    fm_hist = []
+    plot = False
+    check_best = True
+
     if args.option == 'scrf':
         estimator = CoupledResidualFM(
             state_dim=s_dim,
             action_dim=a_dim,
             hidden_dim=args.hidden_dim,
+            depth=args.depth,
             eps=args.eps
         ).to(device)
+        optimizer = torch.optim.Adam(estimator.net.parameters(), lr=args.lr)
+        params = list(estimator.net.parameters())
+        if args.autotune:
+            gradnorm = GradNorm2D(
+                beta_init=args.loss_anti,
+                gamma_init=args.loss_stable,
+                alpha=0.1,
+                warmup_steps=100,
+                update_freq=10,
+                ema_decay=0.9,
+                beta_min=1e-8,
+                beta_max=1e1,
+                gamma_min=1e-12,
+                gamma_max=1e-2,
+                enable_beta=args.enable_loss_anti,
+                enable_gamma=args.enable_loss_stable
+            ).to(device)
+        if not args.enable_loss_anti:
+            args.loss_anti = 0
+        if not args.enable_loss_stable:
+            args.loss_stable = 0
+
     elif args.option == '2fs':
         estimator = FlowMatching(
             state_dim=s_dim,
             action_dim=a_dim,
             hidden_dim=args.hidden_dim,
+            depth=args.depth,
             eps=args.eps
         ).to(device)
+        optimizer = torch.optim.Adam(estimator.parameters(), lr=args.lr)
     else:
         raise NotImplementedError
 
-    if args.option == "scrf":
-        optimizer = torch.optim.Adam([
-            {"params": estimator.net.shared.parameters(), "lr": args.lr},
-            {"params": estimator.net.head_c.parameters(), "lr": args.lr},
-            {"params": estimator.net.head_r.parameters(), "lr": args.lr / 10 / 2},
-        ], lr=args.lr)
-    else:
-        optimizer = torch.optim.Adam(estimator.parameters(), lr=args.lr)
     estimator.train()
 
     train_loss_list = []
@@ -321,18 +351,52 @@ if __name__ == "__main__":
             a = batch_x[:, s_dim:]
 
             if args.option == "scrf":
-                loss = 0
-                a_mix = a + 0.1 * torch.randn_like(a)
                 loss_expert = estimator.fm_loss(s, a, role="expert")
-                loss_agent = estimator.fm_loss(s, a_mix, role="agent")
-                loss += loss_expert + loss_agent
-                if args.loss_anti > 0 or args.loss_stable > 0:
-                    mix_a = a.detach().requires_grad_(True)
-                    t_noise = torch.rand_like(mix_a[:, :1])
+                noise = 0.1 * torch.randn_like(a)
+                a_noise = a + noise
+                loss_agent = estimator.fm_loss(s, a_noise, role="agent")
+                loss = loss_expert + loss_agent
+
+                use_anti = args.loss_anti > 0
+                use_stable = args.loss_stable > 0
+                if use_anti or use_stable:
+                    mix_a = a_noise.detach().requires_grad_(True)
+                    t_noise = torch.rand_like(mix_a[..., :1])
                     v_c, r = estimator.net(mix_a, s, t_noise)
-                    if args.loss_anti > 0:
-                        loss_anti = estimator._hutch_div(mix_a, r, k=1).square().mean()
-                        loss += loss_anti * args.loss_anti
+
+                    loss_anti = estimator._hutch_div(mix_a, r, k=1).square().mean() if use_anti else None
+                    loss_stable = _jacobian_frobenius(mix_a, v_c + r).mean() if use_stable else None
+
+                    if not args.autotune: # disable autotune
+                        if use_anti:
+                            loss += args.loss_anti * loss_anti
+                        if use_stable:
+                            loss += args.loss_stable * loss_stable
+
+                    else:
+                        # fintune warmup
+                        if gradnorm.step_count <= gradnorm.warmup_steps:
+                            reg = 0.0
+                            if args.enable_loss_anti and use_anti:
+                                w_anti = loss_expert.detach() / (loss_anti.detach() + eps) * global_scale
+                                reg += w_anti * loss_anti
+                                args.loss_anti = w_anti
+                            if args.enable_loss_stable and use_stable:
+                                w_st = loss_expert.detach() / (loss_stable.detach() + eps) * global_scale
+                                reg += w_st * loss_stable
+                                args.loss_stable = w_st
+                            loss = loss + reg
+
+                        else:
+                            # gradnorm
+                            reg, new_w_anti, new_w_st = gradnorm(loss_anti, loss_stable)
+                            loss += reg
+                            gradnorm.update(loss_anti, loss_stable, params)
+                            args.loss_anti, args.loss_stable = new_w_anti, new_w_st
+
+                        estimator.loss_anti = args.loss_anti
+                        estimator.loss_stable = args.loss_stable
+
             else:
                 loss = estimator.fm_loss(s, a)
 
@@ -342,10 +406,27 @@ if __name__ == "__main__":
             optimizer.step()
             total_loss += loss.item()
 
+            if args.option == "scrf":
+                fm_hist.append(loss_expert.item())
+            else:
+                fm_hist.append(loss.item())
+
+            if check_best:
+                if len(fm_hist) > window:
+                    fm_hist.pop(0)
+                avg = sum(fm_hist) / len(fm_hist)
+                if avg + 1e-5 < best_avg:
+                    best_avg, plateau = avg, 0
+                else:
+                    plateau += 1
+                if plateau >= patience:
+                    plot = True
+                    check_best = False
+
         ave_loss = total_loss / len(dataloader)
         train_loss_list.append(ave_loss)
 
-        if t % 200 == 0:
+        if t % 200 == 0 or plot:
             # --- prepare grid for vector field plotting ---
             data_np = dataset.cpu().numpy()
             x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
@@ -371,8 +452,8 @@ if __name__ == "__main__":
                 contour = plt.contourf(X, Y, magnitude, levels=100, cmap=CMAP, alpha=ALPHA_BG)
                 plt.colorbar(contour, label='||v||')
                 plt.streamplot(X, Y, U, V, color=magnitude, cmap=CMAP, **PLOT_KW)
-                plt.title(f'{env}_{task}_energy_field_epoch{t}')
-                plt.savefig(f'{image_save_path}/{env}_{task}_vector_field_{t}.png')
+                plt.title(f'{env}_{task}_vector_field_step_{t}')
+                plt.savefig(f'{image_save_path}/{env}_{task}_vector_field_{t}{"_b" if plot else ""}.png')
                 plt.close()
             elif args.option == 'scrf':
                 with torch.no_grad():
@@ -405,11 +486,11 @@ if __name__ == "__main__":
                 for ax, cf, lbl in zip((ax1, ax2, ax3), (cf1, cf2, cf3), ('||v_c||', '||r||', '||v_E||')):
                     fig.colorbar(cf, ax=ax, label=lbl)
 
-                fig.suptitle(f'{env}_{task}_energy_flow_epoch_{t}')
-                fig.savefig(f'{image_save_path}/{env}_{task}_energy_flow_{t}.png')
+                fig.suptitle(f'{env}_{task}_vector_field_step_{t}')
+                fig.savefig(f'{image_save_path}/{env}_{task}_vector_field_{t}{"_b" if plot else ""}.png')
                 plt.close(fig)
 
-        if t % 500 == 0:
+        if t % 500 == 0 or plot:
             train_iteration_list = list(range(len(train_loss_list)))
             smoothed_ema = ema(train_loss_list, 0.05)
             plt.figure(figsize=(6, 4))
@@ -419,11 +500,13 @@ if __name__ == "__main__":
             plt.ylabel('Loss')
             plt.title(env + '_flow_matching_loss (EMA)')
             plt.legend()
-            plt.savefig(f'{image_save_path}/{env}_fm_loss.png')
+            plt.savefig(f'{image_save_path}/{env}_fm_loss{"_b" if plot else ""}.png')
             plt.close()
 
-        if t % 1000 == 0:
-            torch.save(estimator.state_dict(), f'{model_save_path}/{env}_fm_{t}.pt')
+        if t % 1000 == 0 or plot:
+            torch.save(estimator.state_dict(), f'{model_save_path}/{env}_fm_{t}{"_b" if plot else ""}.pt')
+
+        plot = False
 
     torch.save(estimator.state_dict(), f'{model_save_path}/{env}_fm.pt')
     torch.save(train_loss_list, f'{model_save_path}/{env}_train_loss.pt')

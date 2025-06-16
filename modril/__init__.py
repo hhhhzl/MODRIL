@@ -34,7 +34,7 @@ from modril.envs.fetch import *
 # Walker (Import by gym)
 
 # Handrotate
-from modril.envs.hand import *
+# from modril.envs.hand import *
 
 # Humanoid (hopper v3)
 # register(

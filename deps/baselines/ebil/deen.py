@@ -7,6 +7,7 @@ from tqdm import tqdm
 import numpy as np
 from modril.utils.ema import ema
 
+
 def str2bool(v):
     return v.lower() == "true"
 
@@ -27,21 +28,36 @@ class DEENDensity(nn.Module):
        L = E_{x~ρ_E, y=x+N(0,σ^2I)} || x - y + σ^2 ∇_y E_θ(y) ||^2
     """
 
-    def __init__(self, state_dim, action_dim, hidden_dim=128, sigma=0.1):
+    def __init__(self, state_dim, action_dim, hidden_dim=128, sigma=0.1, depth=4):
         """
+        Args:
+            state_dim (int): Dimension of state space
+            action_dim (int): Dimension of action space
+            hidden_dim (int): Number of units in each hidden layer
+            sigma (float): Noise scale for DEEN loss
+            depth (int): Number of hidden layers (>=1)
         """
         super().__init__()
         self.dim = state_dim + action_dim
         self.hidden_dim = hidden_dim
         self.sigma = sigma
-        self.net = nn.Sequential(
-            nn.Linear(self.dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1),
-            nn.Sigmoid()
-        )
+        self.depth = max(1, depth)
+
+        # Build network with configurable number of layers
+        layers = []
+        # Input layer
+        layers.append(nn.Linear(self.dim, hidden_dim))
+        layers.append(nn.ReLU())
+        # Additional hidden layers
+        for _ in range(self.depth - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        # Output layer
+        layers.append(nn.Linear(hidden_dim, 1))
+        layers.append(nn.Sigmoid())
+
+        # Assemble into a Sequential module
+        self.net = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.net(x).squeeze(-1)  # [B]
@@ -136,6 +152,7 @@ if __name__ == "__main__":
         state_dim=obs.shape[1],
         action_dim=actions.shape[1],
         hidden_dim=args.hidden_dim,
+        depth=args.depth,
         sigma=args.sigma
     ).to(device)
     optimizer = torch.optim.Adam(estimator.parameters(), lr=args.lr)
@@ -174,13 +191,13 @@ if __name__ == "__main__":
             E = E.cpu().numpy().reshape(X.shape)
 
             fig, ax = plt.subplots(figsize=(6, 6))
-            cf = ax.contourf(X, Y, E, levels=50, cmap='viridis')
+            cf = ax.contourf(X, Y, E, levels=100, cmap='viridis')
             plt.colorbar(cf, ax=ax, label='Energy')
             ax.set_title(f'Energy Field at epoch {t}')
             ax.set_xlabel('dim0')
             ax.set_ylabel('dim1')
             ax.scatter(data_np[:2000, 0], data_np[:2000, 1], s=2, c='white', alpha=0.6, edgecolors='none')
-            plt.savefig(f'{image_save_path}/{env}-energy-epoch{t}.png')
+            plt.savefig(f'{image_save_path}/{env}_energy_epoch{t}.png')
             plt.close()
 
         if t % 500 == 0:
