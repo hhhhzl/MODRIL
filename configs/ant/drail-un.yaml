@@ -18,7 +18,7 @@ parameters:
   env-name:
     value: AntGoal-v0
   traj-load-path:
-    value: modril/expert_datasets/antReach_50.pt
+    value: modril/expert_datasets/ant.pt
   cuda:
     value: True
   num-steps:

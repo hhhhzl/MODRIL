@@ -96,10 +96,13 @@ if __name__ == "__main__":
     parser.add_argument('--prefix', type=str, default='')
     parser.add_argument('--save-path', type=str, default='data/pre')
     args = parser.parse_args()
+    task = "ebm"
+
+    print("=======================================================")
+    print(f"Task = {task}")
     print(f"Hidden dimension = {args.hidden_dim}")
     print(f"Depth = {args.depth}")
 
-    task = "ebm"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 128
     num_epoch = args.num_epoch
@@ -173,7 +176,7 @@ if __name__ == "__main__":
         ave_loss = total_loss / len(dataloader)
         train_loss_list.append(ave_loss)
 
-        if t % 1000 == 0:
+        if t % 200 == 0:
             data_np = dataset.cpu().numpy()
             x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
             y_min, y_max = data_np[:, 1].min(), data_np[:, 1].max()
@@ -197,10 +200,10 @@ if __name__ == "__main__":
             ax.set_xlabel('dim0')
             ax.set_ylabel('dim1')
             ax.scatter(data_np[:2000, 0], data_np[:2000, 1], s=2, c='white', alpha=0.6, edgecolors='none')
-            plt.savefig(f'{image_save_path}/{env}_energy_epoch{t}.png')
+            plt.savefig(f'{image_save_path}/{env}_energy_epoch_{t}.png')
             plt.close()
 
-        if t % 500 == 0:
+        if t % 200 == 0:
             train_iteration_list = list(range(len(train_loss_list)))
             smoothed_ema = ema(train_loss_list, 0.05)
             plt.figure(figsize=(6, 4))
@@ -213,7 +216,7 @@ if __name__ == "__main__":
             plt.savefig(f'{image_save_path}/{env}_deen_loss.png')
             plt.close()
 
-        if t % 1000 == 0:
+        if t % 200 == 0:
             torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen_{t}.pt')
 
     torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen.pt')

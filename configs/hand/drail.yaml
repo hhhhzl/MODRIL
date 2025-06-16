@@ -23,7 +23,7 @@ parameters:
   cuda:
     value: True
   traj-load-path:
-    value: modril/expert_datasets/hand_10000.pt
+    value: modril/expert_datasets/hand.pt
   eval-num-processes:
     value: 1
   num-render:
