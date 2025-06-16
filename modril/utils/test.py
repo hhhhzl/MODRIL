@@ -1,10 +1,18 @@
 # import torch
 # import os
-
+#
 # dir = os.path.dirname(os.path.realpath(__file__))
+#
+# traj = torch.load(os.path.join(dir, "..", "expert_datasets/pick.pt"))
+# print(traj.keys())  # ! 20311
 
-# traj = torch.load(os.path.join(dir, "..", "expert_datasets/pick_2000.pt"))
-# print(traj["obs"].shape)  # ! 20311
+# import pickle
+#
+#
+# with open('Hopper.pkl', 'rb') as f:
+#     data = pickle.load(f)
+#
+# print(data[0].keys())
 
 import os
 import os.path as osp

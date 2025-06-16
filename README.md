@@ -39,8 +39,13 @@ Note: you have to reload to source file if you make change under /deps/gym17/rob
 ## Datasets & Wandb
 
 #### Download Demo Datasets
+Download the datasets that only used in experiments:
 ```
-./scripts/download_demos.sh
+./scripts/download_demos.sh exp
+```
+Download all datasets :
+```
+./scripts/download_demos.sh full
 ```
 
 #### Set up Wandb

@@ -47,7 +47,7 @@ parameters:
   depth:
     value: 3
   traj-load-path:
-    value: modril/expert_datasets/maze2d_100.pt
+    value: modril/expert_datasets/maze.pt
   prefix:
     value: bc
   num-env-steps:

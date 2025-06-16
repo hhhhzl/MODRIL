@@ -401,7 +401,6 @@ class GAIL_FlowShare:
             loss = loss_E + loss_A + loss_reg
             self.gradnorm.update(loss_anti, j_pen, self.params)
             self.beta_anti, self.gamma_stab = beta.item(), gamma.item()
-            print(beta.item(), gamma.item())
         else:
             loss = loss_E + loss_A + self.beta_anti * loss_anti + self.gamma_stab * j_pen
 

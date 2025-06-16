@@ -29,7 +29,7 @@ parameters:
   cuda:
     value: True
   traj-load-path:
-    value: modril/expert_datasets/maze2d_100.pt
+    value: modril/expert_datasets/maze.pt
   eval-num-processes:
     value: 1
   num-render:

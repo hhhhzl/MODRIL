@@ -4,7 +4,7 @@ import os
 dir = os.path.dirname(os.path.realpath(__file__))
 
 traj = torch.load(os.path.join(dir, "..", "expert_datasets/pick_partial3.pt"))
-print(traj["obs"].shape)  # ! 20311
+print(traj["obs"].shape)
 
 
 def clip_dataset(data, num_transition=10000):
@@ -19,7 +19,7 @@ def clip_dataset(data, num_transition=10000):
     return trajs
 
 
-target_list = [2000, 5000, 10000, 20000]
+target_list = [2000, 5000, 20000]
 
 for target in target_list:
     trajs = clip_dataset(traj, target)

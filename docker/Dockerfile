@@ -54,6 +54,6 @@ RUN chmod +x scripts/copy_gym_robotics.sh && \
     scripts/copy_gym_robotics.sh
 
 RUN chmod +x scripts/download_demos.sh && \
-    scripts/download_demos.sh
+    scripts/download_demos.sh full
 
 CMD ["bash"]

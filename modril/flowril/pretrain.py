@@ -236,13 +236,23 @@ if __name__ == "__main__":
     parser.add_argument('--loss-anti', type=float, default=1e-4)
     parser.add_argument('--loss-stable', type=float, default=1e-6)
     args = parser.parse_args()
-    print(f"Hidden dimension = {args.hidden_dim}")
-    print(f"Depth = {args.depth}")
 
     task = args.option
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size = 128
     num_epoch = args.num_epoch
+
+    if not args.enable_loss_anti and args.enable_loss_stable:
+        task = f"{task}_no_a"
+    if not args.enable_loss_stable and args.enable_loss_anti:
+        task = f"{task}_no_s"
+    if not args.enable_loss_anti and not args.enable_loss_stable:
+        task = f"{task}_no_as"
+
+    print("=======================================================")
+    print(f"Task = {task}")
+    print(f"Hidden dimension = {args.hidden_dim}")
+    print(f"Depth = {args.depth}")
 
     env = args.traj_load_path.split('/')[-1][:-3]
     model_save_path = f'{args.save_path}/{env}/{task}/trained_models'
@@ -490,7 +500,7 @@ if __name__ == "__main__":
                 fig.savefig(f'{image_save_path}/{env}_{task}_vector_field_{t}{"_b" if plot else ""}.png')
                 plt.close(fig)
 
-        if t % 500 == 0 or plot:
+        if t % 200 == 0 or plot:
             train_iteration_list = list(range(len(train_loss_list)))
             smoothed_ema = ema(train_loss_list, 0.05)
             plt.figure(figsize=(6, 4))
@@ -503,7 +513,7 @@ if __name__ == "__main__":
             plt.savefig(f'{image_save_path}/{env}_fm_loss{"_b" if plot else ""}.png')
             plt.close()
 
-        if t % 1000 == 0 or plot:
+        if t % 200 == 0 or plot:
             torch.save(estimator.state_dict(), f'{model_save_path}/{env}_fm_{t}{"_b" if plot else ""}.pt')
 
         plot = False
