@@ -15,14 +15,14 @@ done
 EPOCHS=10000
 LR=1e-4
 HIDDEN=256
-job_count=0
+pids=()
 
 run_job() {
     "$@" &
-    ((job_count+=1))
-    if [[ $job_count -ge $MAX_JOBS ]]; then
-        wait -n
-        ((job_count--))
+    pids+=($!)
+    if [[ ${#pids[@]} -ge $MAX_JOBS ]]; then
+        wait "${pids[0]}"
+        pids=("${pids[@]:1}")
     fi
 }
 
@@ -50,13 +50,15 @@ run_basic_variants() {
 }
 
 # === Run combo tasks ===
-run_all_variants sine
-run_all_variants maze
+#run_all_variants sine
+#run_all_variants maze
 run_all_variants pick
-run_all_variants walker
-run_basic_variants push
-run_basic_variants halfcheetach
-run_basic_variants hand
-run_basic_variants ant
+#run_all_variants walker
+#run_all_variants push
+#run_all_variants halfcheetach
+#run_all_variants hand
+#run_all_variants ant
 
-wait
+for pid in "${pids[@]}"; do
+    wait "$pid"
+done
