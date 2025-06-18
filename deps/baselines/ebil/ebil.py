@@ -29,21 +29,15 @@ class EnergyDensity(BaseIRLAlgo):
 
     def _create_energy_net(self):
         # Determine state and action dimensions from policy
-        obs_space = self.policy.observation_space
-        if hasattr(obs_space, 'shape'):
-            state_dim = int(np.prod(obs_space.shape))
-        else:
-            state_dim = obs_space.n
-        action_space = self.policy.action_space
-        if hasattr(action_space, 'n'):
-            action_dim = 1
-        else:
-            action_dim = int(np.prod(action_space.shape))
+        ob_shape = rutils.get_obs_shape(self.policy.obs_space)
+        action_dim = rutils.get_ac_dim(self.action_space)
+        state_dim = ob_shape[0]
+        
         # Initialize energy network
         self.energy_net = DEENDensity(
             state_dim=state_dim,
             action_dim=action_dim,
-            hidden_dim=self.args.discrim_num_unit,
+            hidden_dim=self.args.hidden_dim,
             sigma=self.args.sigma
         ).to(self.args.device)
         # Load pretrained weights if provided
@@ -149,6 +143,7 @@ class EnergyDensity(BaseIRLAlgo):
                 return reward, {}
 
     def _compute_energy_loss(self, agent_batch, expert_batch, obsfilt):
+        print(expert_batch)
         expert_batch = expert_batch.to(self.args.device)
         agent_batch = agent_batch.to(self.args.device)
         expert_d = self.energy_net(expert_batch)
@@ -287,6 +282,8 @@ class EnergyDensity(BaseIRLAlgo):
         parser.add_argument('--ebil-state-norm', type=str2bool, default=True)
         parser.add_argument('--energy-path', type=str, default=None)
         parser.add_argument('--energy-depth', type=int, default=4)
+        parser.add_argument('--hidden-dim', type=int, default=256)
+        parser.add_argument('--sigma', type=int, default=0.1)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
         parser.add_argument('--disc-grad-pen', type=float, default=0.0)
         parser.add_argument('--expert-loss-rate', type=float, default=1.0)
