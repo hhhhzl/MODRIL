@@ -147,7 +147,7 @@ class Runner:
             if self.args.alg == 'dpf-deep' or self.args.alg == 'dpf':
                 self.checkpointer.save_key("prox_func", self.updater.modules[0].prox_func.state_dict())
             else:
-                if self.args.alg not in ['bc', 'sac', 'bcf', 'dp', 'ppo', 'iq-learn']:
+                if self.args.alg not in ['bc', 'sac', 'bcf', 'dp', 'ppo', 'iq-learn', 'ebil', 'flowril']:
                     self.checkpointer.save_key("discrim_net", self.updater.modules[0].discrim_net.state_dict())
             self.updater.save(self.checkpointer)
 

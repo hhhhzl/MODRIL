@@ -116,7 +116,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     def get_env_settings(self, args):
         settings = super().get_env_settings(args)
-        if not args.flow_state_norm:
+        if not args.flowril_state_norm:
             settings.ret_raw_obs = True
         settings.mod_render_frames_fn = self.mod_render_frames
         return settings
@@ -139,7 +139,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return frame
 
     def _norm_expert_state(self, state, obsfilt):
-        if not self.args.flow_state_norm:
+        if not self.args.flowril_state_norm:
             return state
         state = state.cpu().numpy()
 
@@ -149,7 +149,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return state
 
     def _trans_agent_state(self, state, other_state=None):
-        if not self.args.flow_state_norm:
+        if not self.args.flowril_state_norm:
             if other_state is None:
                 return state['raw_obs']
             return other_state['raw_obs']
@@ -169,7 +169,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             logp_E = self.flow_net_e.log_prob(x)
             logp_A = self.flow_net_a.log_prob(x)
 
-        r = (logp_E - logp_A).detach().cpu().numpy()
+        r = (logp_E - logp_A).unsqueeze(-1).detach().cpu().numpy()
         s = torch.sigmoid(torch.tensor(r, device=state.device))
         eps = 1e-20
 
@@ -191,10 +191,15 @@ class FlowMatchingEstimation(BaseIRLAlgo):
     def _get_reward(self, step, storage, add_info):
         masks = storage.masks[step]
         with torch.no_grad():
-            self.flow_net.eval()
+            if self.args.option == "scrf":
+                self.flow_net.eval()
+            else:
+                self.flow_net_e.eval()
+                self.flow_net_a.eval()
+                
             reward = self._compute_flow_reward(storage, step, add_info)
 
-            if self.args.drail_reward_norm:
+            if self.args.flowril_reward_norm:
                 if self.returns is None:
                     self.returns = reward.clone()
 
@@ -206,12 +211,21 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 return reward, {}
 
     def _compute_flow_loss(self, agent_batch, expert_batch, obsfilt):
-        expert = expert_batch.to(self.args.device)
-        agent = agent_batch.to(self.args.device)
-        s_E = expert[:, :self.state_dim]
-        a_E = expert[:, self.state_dim:]
-        s_A = agent[:, :self.state_dim]
-        a_A = agent[:, self.state_dim:]
+        expert_states = self._norm_expert_state(expert_batch['state'], obsfilt)
+        expert_actions = expert_batch['action'].to(self.args.device)
+        expert_actions = self._adjust_action(expert_actions)
+        expert_actions = rutils.get_ac_repr(self.action_space, expert_actions)
+        expert_inp = torch.cat([expert_states, expert_actions], dim=-1)
+
+        agent_states = self._trans_agent_state(agent_batch['state'], agent_batch['other_state'] if 'other_state' in agent_batch else None)
+        agent_actions = agent_batch['actions'].to(self.args.device)
+        agent_actions = rutils.get_ac_repr(self.action_space, agent_actions)
+        agent_inp = torch.cat([agent_states, agent_actions], dim=-1)
+        
+        s_E = expert_inp[:, :self.state_dim]
+        a_E = expert_inp[:, self.state_dim:]
+        s_A = agent_inp[:, :self.state_dim]
+        a_A = agent_inp[:, self.state_dim:]
 
         if self.args.option == "scrf":
             loss_E = self.flow_net.fm_loss(s_E, a_E, role="expert")
@@ -262,7 +276,11 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return flow_loss, loss_E, loss_A
 
     def _update_reward_func(self, storage):
-        self.flow_net.train()
+        if self.args.option == "scrf":
+            self.flow_net.train()
+        else:
+            self.flow_net_e.train()
+            self.flow_net_a.train()
         log_vals = defaultdict(float)
         obsfilt = self.get_env_ob_filt()
         # Get expert and agent samplers
@@ -270,7 +288,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         if agent_sampler is None:
             return {}
         count = 0
-        for _ in range(self.args.n_ebil_epochs):
+        for _ in range(self.args.n_flowril_epochs):
             for expert_batch, agent_batch in zip(expert_sampler, agent_sampler):
                 expert_batch, agent_batch = self._trans_batches(expert_batch, agent_batch)
                 loss, e_loss, a_loss = self._compute_flow_loss(expert_batch, agent_batch, obsfilt)
@@ -307,8 +325,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 log_vals["_vector_field_map"] = self.plot_vector_field(self.step)
                 self._vector_plot_path.append(log_vals["_vector_field_map"])
 
-                log_vals["_reward_map"] = self.plot_reward_map(self.step)
-                self._reward_plot_path.append(log_vals["_reward_map"])
+                #log_vals["_reward_map"] = self.plot_reward_map(self.step)
+                #self._reward_plot_path.append(log_vals["_reward_map"])
         return log_vals
 
     def _compute_disc_val(self, state, action):
@@ -500,7 +518,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         #########################################
         # New args
         parser.add_argument('--n-flowril-epochs', type=int, default=1)
-        parser.add_argument('--flow-state-norm', type=str2bool, default=True)
+        parser.add_argument('--flowril-state-norm', type=str2bool, default=True)
+        parser.add_argument('--flowril-reward-norm', type=str2bool, default=True)
         parser.add_argument('--flow-path', type=str, default=None)
         parser.add_argument('--flow-depth', type=int, default=4)
         parser.add_argument('--disc-lr', type=float, default=1e-4)

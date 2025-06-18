@@ -32,6 +32,7 @@ from rlf.algos import (
     PWIL,
 )
 from deps.baselines.ebil.ebil import EBIL
+from modril.flowril.flowril import FLOWRIL
 from modril.utils.goal_traj_saver import GoalTrajSaver
 from modril.utils.trim_trans import trim_episodes_trans
 from deps.baselines.get_policy import (
@@ -46,7 +47,6 @@ from deps.baselines.get_policy import (
 # has to import for pick\push resize
 import modril.envs.fetch
 import modril.envs.goal_check
-
 
 def get_setup_dict():
     return {
@@ -67,6 +67,7 @@ def get_setup_dict():
         "drail-un": (DRAIL_UN(), get_ppo_policy),
         "drail": (DRAIL(), get_ppo_policy),
         "ebil": (EBIL(), get_ppo_policy),
+        "flowril": (FLOWRIL(), get_ppo_policy),
     }
 
 
