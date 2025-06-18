@@ -78,13 +78,13 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 action_dim=self.action_dim,
                 hidden_dim=self.args.hidden_dim,
                 depth=self.args.flow_depth
-            )
+            ).to(self.args.device)
             self.flow_net_a = FlowMatching(
                 state_dim=self.state_dim,
                 action_dim=self.action_dim,
                 hidden_dim=self.args.hidden_dim,
                 depth=self.args.flow_depth
-            )
+            ).to(self.args.device)
             if self.args.flow_path and not self.args.finetune_ve:
                 self.flow_net_e.load_state_dict(torch.load(self.args.flow_path, map_location=self.args.device))
                 # frozen net e after pretrain
@@ -157,20 +157,23 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     # rewards
     def _compute_flow_reward(self, storage, step, add_info):
-        state = torch.FloatTensor(rutils.get_def_obs(storage.get_obs(step))).to(self.args.device)
-        action = torch.FloatTensor(storage.actions[step]).to(self.args.device)
+        state = self._trans_agent_state(storage.get_obs(step)).to(self.args.device)
+        action = storage.actions[step].to(self.args.device)
         action = rutils.get_ac_repr(self.action_space, action)
+        # state = state.requires_grad_(True)
+        # action = action.requires_grad_(True)
 
         if self.args.option == "scrf":
-            logp_E = self.flow_net.log_prob(state, action, "expert")
-            logp_A = self.flow_net.log_prob(state, action, "agent")
+            with torch.enable_grad():
+                logp_E = self.flow_net.log_prob(state, action, "expert")
+                logp_A = self.flow_net.log_prob(state, action, "agent")
         else:
             x = torch.cat([state, action], dim=-1)
             logp_E = self.flow_net_e.log_prob(x)
             logp_A = self.flow_net_a.log_prob(x)
 
-        r = (logp_E - logp_A).unsqueeze(-1).detach().cpu().numpy()
-        s = torch.sigmoid(torch.tensor(r, device=state.device))
+        r = (logp_E - logp_A).unsqueeze(-1)
+        s = torch.sigmoid(r)
         eps = 1e-20
 
         if self.args.reward_type == 'norm':
@@ -179,7 +182,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             exp_e = torch.exp(r)
             reward = - exp_e / (1 + exp_e)
         elif self.args.reward_type == 'raw':
-            reward = torch.tensor(r)
+            reward = r
         elif self.args.reward_type == 'clip':
             reward = torch.clamp(r, min=-20.0, max=20.0)
         elif self.args.reward_type == 'smooth':
@@ -294,7 +297,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 loss, e_loss, a_loss = self._compute_flow_loss(expert_batch, agent_batch, obsfilt)
 
                 # only update Va
-                if self.args.flow_path and not self.args.finetune_ve:
+                if self.args.flow_path and not self.args.finetune_ve and self.args.option == '2fs':
                     self.opt.zero_grad()
                     a_loss.backward()
                 else:
@@ -334,8 +337,9 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         action = action.to(self.args.device)
 
         if self.args.option == "scrf":
-            logp_E = self.flow_net.log_prob(state, action, role="expert")
-            logp_A = self.flow_net.log_prob(state, action, role="agent")
+            with torch.enable_grad():
+                logp_E = self.flow_net.log_prob(state, action, role="expert")
+                logp_A = self.flow_net.log_prob(state, action, role="agent")
         else:
             logp_E = self.flow_net_e.log_prob(state, action)
             logp_A = self.flow_net_a.log_prob(state, action)
@@ -353,7 +357,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         plt.figure(figsize=(8, 5))
         plt.imshow(reward, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
-        file_path = "./data/imgs/" + self.args.prefix + f"{self.args.option}_disc_val_map.png"
+        file_path = "./data/imgs/" + self.args.prefix + f"_{self.args.option}_disc_val_map.png"
         folder = os.path.dirname(file_path)
         os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
@@ -394,15 +398,19 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return file_path
 
     def plot_vector_field(self, i):
-        data = []
         ds = self.expert_train_loader.dataset
         if hasattr(ds, 'tensors'):
             data = torch.cat(ds.tensors, dim=1)
         else:
-            for s, a in ds:
-                data.append(torch.cat([torch.as_tensor(s).view(-1),
-                                       torch.as_tensor(a).view(-1)], dim=0))
-            data = torch.stack(data, dim=0)
+            rows = []
+            for item in ds:
+                s, a = item['state'], item['actions']
+                s = torch.as_tensor(s).view(-1)
+                a = torch.as_tensor(a).view(-1)
+                rows.append(torch.cat([s, a], dim=0))
+
+            data = torch.stack(rows, dim=0)
+
         data_np = data.cpu().numpy()
         x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
         y_min, y_max = data_np[:, 1].min(), data_np[:, 1].max()
@@ -443,8 +451,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 }
 
         n = len(fields)
-        cols = 2
-        rows = (n + 1) // 2
+        cols = 4
+        rows = 1
         fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
         axes = axes.flatten()
 
@@ -466,11 +474,10 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         fig.suptitle(f'Vector Field @ epoch {i}', fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-        save_dir = os.path.join(self.args.prefix + '_vec_field')
-        os.makedirs(save_dir, exist_ok=True)
-        file_path = os.path.join(save_dir, f'vector_field_{i}.png')
-        fig.savefig(file_path)
-        plt.close(fig)
+        file_path = "./data/imgs/" + self.args.prefix + f"_{self.args.option}_vec_field_{i}.png"
+        folder = os.path.dirname(file_path)
+        os.makedirs(folder, exist_ok=True)
+        plt.savefig(file_path)
         return file_path
 
     def _save_animation(self, step):
@@ -540,7 +547,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 not change training.
                 """)
         # for plot
-        parser.add_argument('--plot-during-train', type=bool, default=False)
+        parser.add_argument('--plot-during-train', type=bool, default=True)
         parser.add_argument('--save-animation', type=bool, default=False)
         parser.add_argument('--save-animation', type=bool, default=False)
         parser.add_argument('--save-interval', type=int, default=100)

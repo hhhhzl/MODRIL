@@ -26,11 +26,11 @@ parameters:
   flowril-reward-norm:
     value: True
   cuda:
-    value: True
+    value: False
   eval-interval:
     value: 1
   save-interval:
-    value: 100
+    value: 10
   traj-load-path:
     value: modril/expert_datasets/sine.pt
   flow-path:
