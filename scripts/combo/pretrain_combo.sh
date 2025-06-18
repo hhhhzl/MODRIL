@@ -33,9 +33,9 @@ run_all_variants() {
 
     run_job python deps/baselines/ebil/deen.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN"
     run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN"
+    run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN" --enable-loss-stable false --enable-loss-anti false
     run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN" --enable-loss-anti false
     run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN" --enable-loss-stable false
-    run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN" --enable-loss-stable false --enable-loss-anti false
     run_job python modril/flowril/pretrain.py --traj-load-path "$path" --num-epoch "$EPOCHS" --lr "$LR" --hidden-dim "$HIDDEN" --option 2fs
 }
 
@@ -50,9 +50,9 @@ run_basic_variants() {
 }
 
 # === Run combo tasks ===
-#run_all_variants sine
+run_all_variants sine
 #run_all_variants maze
-run_all_variants pick
+#run_all_variants pick
 #run_all_variants walker
 #run_all_variants push
 #run_all_variants halfcheetach

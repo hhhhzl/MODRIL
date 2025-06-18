@@ -14,6 +14,9 @@ from deps.baselines.ebil.deen import DEENDensity
 import os
 
 
+def str2bool(v):
+    return v.lower() == "true"
+
 class EBIL(NestedAlgo):
     def __init__(self, agent_updater=PPO()):
         super().__init__([EnergyDensity(), agent_updater], 1)
@@ -26,21 +29,15 @@ class EnergyDensity(BaseIRLAlgo):
 
     def _create_energy_net(self):
         # Determine state and action dimensions from policy
-        obs_space = self.policy.observation_space
-        if hasattr(obs_space, 'shape'):
-            state_dim = int(np.prod(obs_space.shape))
-        else:
-            state_dim = obs_space.n
-        action_space = self.policy.action_space
-        if hasattr(action_space, 'n'):
-            action_dim = 1
-        else:
-            action_dim = int(np.prod(action_space.shape))
+        ob_shape = rutils.get_obs_shape(self.policy.obs_space)
+        action_dim = rutils.get_ac_dim(self.action_space)
+        state_dim = ob_shape[0]
+        
         # Initialize energy network
         self.energy_net = DEENDensity(
             state_dim=state_dim,
             action_dim=action_dim,
-            hidden_dim=self.args.discrim_num_unit,
+            hidden_dim=self.args.hidden_dim,
             sigma=self.args.sigma
         ).to(self.args.device)
         # Load pretrained weights if provided
@@ -66,7 +63,7 @@ class EnergyDensity(BaseIRLAlgo):
 
     def get_env_settings(self, args):
         settings = super().get_env_settings(args)
-        if not args.gail_state_norm:
+        if not args.ebil_state_norm:
             settings.ret_raw_obs = True
         settings.mod_render_frames_fn = self.mod_render_frames
         return settings
@@ -89,7 +86,7 @@ class EnergyDensity(BaseIRLAlgo):
         return frame
 
     def _norm_expert_state(self, state, obsfilt):
-        if not self.args.gail_state_norm:
+        if not self.args.ebil_state_norm:
             return state
         state = state.cpu().numpy()
 
@@ -99,7 +96,7 @@ class EnergyDensity(BaseIRLAlgo):
         return state
 
     def _trans_agent_state(self, state, other_state=None):
-        if not self.args.gail_state_norm:
+        if not self.args.ebil_state_norm:
             if other_state is None:
                 return state['raw_obs']
             return other_state['raw_obs']
@@ -146,6 +143,7 @@ class EnergyDensity(BaseIRLAlgo):
                 return reward, {}
 
     def _compute_energy_loss(self, agent_batch, expert_batch, obsfilt):
+        print(expert_batch)
         expert_batch = expert_batch.to(self.args.device)
         agent_batch = agent_batch.to(self.args.device)
         expert_d = self.energy_net(expert_batch)
@@ -281,8 +279,11 @@ class EnergyDensity(BaseIRLAlgo):
         #########################################
         # New args
         parser.add_argument('--n-ebil-epochs', type=int, default=1)
+        parser.add_argument('--ebil-state-norm', type=str2bool, default=True)
         parser.add_argument('--energy-path', type=str, default=None)
         parser.add_argument('--energy-depth', type=int, default=4)
+        parser.add_argument('--hidden-dim', type=int, default=256)
+        parser.add_argument('--sigma', type=int, default=0.1)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
         parser.add_argument('--disc-grad-pen', type=float, default=0.0)
         parser.add_argument('--expert-loss-rate', type=float, default=1.0)

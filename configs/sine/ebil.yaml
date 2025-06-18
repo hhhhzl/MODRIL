@@ -23,10 +23,6 @@ parameters:
     value: 10
   entropy-coef:
     value: 0.001
-  action-input:
-    value: True
-  gail-reward-norm:
-    value: True
   cuda:
     value: False
   eval-interval:
@@ -47,3 +43,5 @@ parameters:
     value: 10
   num-env-steps:
     value: 5000000
+  ebil-state-norm:
+    value: False

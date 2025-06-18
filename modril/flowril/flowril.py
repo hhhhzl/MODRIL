@@ -33,10 +33,9 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     def _create_flow_net(self):
         # Determine state and action dimensions from policy
-        obs_sp = self.policy.observation_space
-        self.state_dim = int(np.prod(obs_sp.shape)) if hasattr(obs_sp, 'shape') else obs_sp.n
-        act_sp = self.policy.action_space
-        self.action_dim = 1 if hasattr(act_sp, 'n') else int(np.prod(act_sp.shape))
+        ob_shape = rutils.get_obs_shape(self.policy.obs_space)
+        self.state_dim = ob_shape[0]
+        self.action_dim = rutils.get_ac_dim(self.action_space)
 
         # Initialize flow network
         if self.args.option == "scrf":
@@ -117,7 +116,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     def get_env_settings(self, args):
         settings = super().get_env_settings(args)
-        if not args.gail_state_norm:
+        if not args.flow_state_norm:
             settings.ret_raw_obs = True
         settings.mod_render_frames_fn = self.mod_render_frames
         return settings
@@ -140,7 +139,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return frame
 
     def _norm_expert_state(self, state, obsfilt):
-        if not self.args.gail_state_norm:
+        if not self.args.flow_state_norm:
             return state
         state = state.cpu().numpy()
 
@@ -150,7 +149,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return state
 
     def _trans_agent_state(self, state, other_state=None):
-        if not self.args.gail_state_norm:
+        if not self.args.flow_state_norm:
             if other_state is None:
                 return state['raw_obs']
             return other_state['raw_obs']
@@ -500,7 +499,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         # Overrides
         #########################################
         # New args
-        parser.add_argument('--n-ebil-epochs', type=int, default=1)
+        parser.add_argument('--n-flowril-epochs', type=int, default=1)
+        parser.add_argument('--flow-state-norm', type=str2bool, default=True)
         parser.add_argument('--flow-path', type=str, default=None)
         parser.add_argument('--flow-depth', type=int, default=4)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
@@ -508,7 +508,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         parser.add_argument('--expert-loss-rate', type=float, default=1.0)
         parser.add_argument('--agent-loss-rate', type=float, default=1.0)
         parser.add_argument('--option', type=str, default='scrf', choices=['scrf', '2fs'])  # stable coupled residual flow / two flow networks
-        parser.add_argument('--hidden-dim', type=int, default=128)
+        parser.add_argument('--hidden-dim', type=int, default=256)
         parser.add_argument('--enable-loss-anti', type=str2bool, default=True)
         parser.add_argument('--enable-loss-stable', type=str2bool, default=True)
         parser.add_argument('--params_autotune', type=str2bool, default=True)  # autotune for 2 parameters

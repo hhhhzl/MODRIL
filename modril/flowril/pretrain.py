@@ -41,7 +41,6 @@ def norm_vec(x, mean, std):
 
 def _rademacher(shape_or_tensor, device=None):
     """Generate Rademacher (±1) noise matching *shape* or *tensor*."""
-    # --- accept Tensor or torch.Size/tuple ---
     if isinstance(shape_or_tensor, torch.Tensor):
         device = shape_or_tensor.device if device is None else device
         shape = tuple(shape_or_tensor.shape)
@@ -49,7 +48,8 @@ def _rademacher(shape_or_tensor, device=None):
         shape = shape_or_tensor
         assert device is not None, "device must be specified when passing shape"
 
-    return torch.randint(0, 2, shape, device=device, generator=_RNG).float().mul_(2).sub_(1)
+    rng = torch.Generator(device=device)
+    return torch.randint(0, 2, shape, device=device, generator=rng).float().mul_(2).sub_(1)
 
 
 def _jacobian_frobenius(x: torch.Tensor, f: torch.Tensor):
@@ -357,6 +357,7 @@ if __name__ == "__main__":
     for t in tqdm(range(1, num_epoch + 1)):
         total_loss = 0
         for idx, batch_x in enumerate(dataloader):
+            batch_x = batch_x.to(device)
             s = batch_x[:, :s_dim]
             a = batch_x[:, s_dim:]
 
