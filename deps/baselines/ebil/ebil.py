@@ -97,18 +97,22 @@ class EnergyDensity(BaseIRLAlgo):
 
     def _trans_agent_state(self, state, other_state=None):
         if not self.args.ebil_state_norm:
-            if other_state is None:
-                return state['raw_obs']
-            return other_state['raw_obs']
+            if isinstance(state, dict):
+                if other_state is None:
+                    return state['raw_obs']
+                return other_state['raw_obs']
+            else:
+                return state
         return rutils.get_def_obs(state)
 
     # rewards
     def _compute_energy_reward(self, storage, step, add_info):
-        state = self._trans_agent_state(storage.get_obs(step))
-        action = storage.actions[step]
+        state = self._trans_agent_state(storage.get_obs(step)).to(self.args.device)
+        action = storage.actions[step].to(self.args.device)
         action = rutils.get_ac_repr(self.action_space, action)
 
-        energy = self.energy_net(action)
+        inp = torch.cat([state, action], dim=-1)
+        energy = self.energy_net(inp).unsqueeze(-1)
         eps = 1e-20
         s = torch.sigmoid(energy)
 
@@ -118,7 +122,7 @@ class EnergyDensity(BaseIRLAlgo):
             exp_e = torch.exp(energy)
             reward = - exp_e / (1 + exp_e)
         elif self.args.reward_type == 'raw':
-            reward = - energy * 1 + 0  # h(-e) in paper, where h is a monotonic increase linear function
+            reward = - energy * 1 + 0  # h(-e) in paper, where h is a monotonic increasing linear function
         elif self.args.reward_type == 'clip':
             reward = torch.clamp(-energy, min=-20.0, max=20.0)
         else:
@@ -131,7 +135,7 @@ class EnergyDensity(BaseIRLAlgo):
             self.energy_net.eval()
             reward = self._compute_energy_reward(storage, step, add_info)
 
-            if self.args.drail_reward_norm:
+            if self.args.ebil_reward_norm:
                 if self.returns is None:
                     self.returns = reward.clone()
 
@@ -143,18 +147,26 @@ class EnergyDensity(BaseIRLAlgo):
                 return reward, {}
 
     def _compute_energy_loss(self, agent_batch, expert_batch, obsfilt):
-        print(expert_batch)
-        expert_batch = expert_batch.to(self.args.device)
-        agent_batch = agent_batch.to(self.args.device)
-        expert_d = self.energy_net(expert_batch)
-        agent_d = self.energy_net(agent_batch)
+        expert_states = self._norm_expert_state(expert_batch['state'], obsfilt)
+        expert_actions = expert_batch['action'].to(self.args.device)
+        expert_actions = self._adjust_action(expert_actions)
+        expert_actions = rutils.get_ac_repr(self.action_space, expert_actions)
+        expert_inp = torch.cat([expert_states, expert_actions], dim=-1)
+
+        agent_states = self._trans_agent_state(agent_batch['state'], agent_batch['other_state'] if 'other_state' in agent_batch else None)
+        agent_actions = agent_batch['actions'].to(self.args.device)
+        agent_actions = rutils.get_ac_repr(self.action_space, agent_actions)
+        agent_inp = torch.cat([agent_states, agent_actions], dim=-1)
+        
+        expert_d = self.energy_net(expert_inp)
+        agent_d = self.energy_net(agent_inp)
         expert_loss = self.args.expert_loss_rate * F.binary_cross_entropy(
             expert_d, torch.ones_like(expert_d)
         )
         agent_loss = self.args.agent_loss_rate * F.binary_cross_entropy(
             agent_d, torch.zeros_like(agent_d)
         )
-        deen_loss = self.args.deen_weight * self.energy_net.deen_loss(expert_batch)
+        deen_loss = self.args.deen_loss_rate * self.energy_net.deen_loss(expert_inp)
         total_loss = expert_loss + agent_loss + deen_loss
         return total_loss, expert_loss, agent_loss
 
@@ -227,6 +239,7 @@ class EnergyDensity(BaseIRLAlgo):
         Y = Y.reshape(-1, 1).to(self.args.device)
         with torch.no_grad():
             d_val = self._compute_disc_val(X, Y)
+            print(d_val.shape, ">>>>>>>>")
             s = torch.sigmoid(d_val)
             eps = 1e-20
             if self.args.reward_type == 'norm':
@@ -280,6 +293,7 @@ class EnergyDensity(BaseIRLAlgo):
         # New args
         parser.add_argument('--n-ebil-epochs', type=int, default=1)
         parser.add_argument('--ebil-state-norm', type=str2bool, default=True)
+        parser.add_argument('--ebil-reward-norm', type=str2bool, default=True)
         parser.add_argument('--energy-path', type=str, default=None)
         parser.add_argument('--energy-depth', type=int, default=4)
         parser.add_argument('--hidden-dim', type=int, default=256)

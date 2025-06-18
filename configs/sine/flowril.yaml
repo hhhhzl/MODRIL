@@ -23,16 +23,14 @@ parameters:
     value: 10
   entropy-coef:
     value: 0.001
-  action-input:
-    value: True
-  gail-reward-norm:
+  flowril-reward-norm:
     value: True
   cuda:
     value: False
   eval-interval:
     value: 1
   save-interval:
-    value: 100
+    value: 10
   traj-load-path:
     value: modril/expert_datasets/sine.pt
   flow-path:

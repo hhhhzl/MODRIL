@@ -24,7 +24,7 @@ parameters:
   entropy-coef:
     value: 0.001
   cuda:
-    value: False
+    value: True
   eval-interval:
     value: 1
   save-interval:
