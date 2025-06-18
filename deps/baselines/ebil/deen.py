@@ -166,6 +166,7 @@ if __name__ == "__main__":
     for t in tqdm(range(1, num_epoch + 1)):
         total_loss = 0
         for idx, batch_x in enumerate(dataloader):
+            batch_x = batch_x.to(device)
             loss = estimator.deen_loss(batch_x)
             optimizer.zero_grad()
             loss.backward()

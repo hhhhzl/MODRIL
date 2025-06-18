@@ -117,7 +117,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     def get_env_settings(self, args):
         settings = super().get_env_settings(args)
-        if not args.gail_state_norm:
+        if not args.flow_state_norm:
             settings.ret_raw_obs = True
         settings.mod_render_frames_fn = self.mod_render_frames
         return settings
@@ -140,7 +140,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return frame
 
     def _norm_expert_state(self, state, obsfilt):
-        if not self.args.gail_state_norm:
+        if not self.args.flow_state_norm:
             return state
         state = state.cpu().numpy()
 
@@ -150,7 +150,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         return state
 
     def _trans_agent_state(self, state, other_state=None):
-        if not self.args.gail_state_norm:
+        if not self.args.flow_state_norm:
             if other_state is None:
                 return state['raw_obs']
             return other_state['raw_obs']
@@ -500,7 +500,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         # Overrides
         #########################################
         # New args
-        parser.add_argument('--n-ebil-epochs', type=int, default=1)
+        parser.add_argument('--n-flowril-epochs', type=int, default=1)
+        parser.add_argument('--flow-state-norm', type=str2bool, default=True)
         parser.add_argument('--flow-path', type=str, default=None)
         parser.add_argument('--flow-depth', type=int, default=4)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
