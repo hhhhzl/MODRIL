@@ -47,10 +47,23 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             # Load pretrained weights if provided
             if self.args.flow_path:
                 self.flow_net.load_state_dict(torch.load(self.args.flow_path, map_location=self.args.device))
-                for p in self.flow_net.parameters():
+
+                # we only frozen vector c
+                for p in self.flow_net.shared.parameters():
+                    p.requires_grad = False
+                for p in self.flow_net.head_c.parameters():
                     p.requires_grad = False
 
-            self.opt = optim.Adam(self.flow_net.parameters(), lr=self.args.disc_lr)
+                for p in self.flow_net.head_r.parameters():
+                    p.requires_grad = True
+
+                self.opt = torch.optim.Adam(
+                    filter(lambda p: p.requires_grad, self.flow_net.parameters()),
+                    lr=self.args.disc_lr
+                )
+            else:
+                self.opt = optim.Adam(self.flow_net.parameters(), lr=self.args.disc_lr)
+
             self.params = list(self.flow_net.parameters())
             if self.args.params_autotune:
                 self.gradnorm = GradNorm2D(
