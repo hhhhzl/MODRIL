@@ -47,3 +47,5 @@ parameters:
     value: 5000000
   enable-loss-anti:
     value: False
+  flowril-state-norm:
+    value: False

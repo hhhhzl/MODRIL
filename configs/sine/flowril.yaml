@@ -45,3 +45,5 @@ parameters:
     value: 10
   num-env-steps:
     value: 5000000
+  flowril-state-norm:
+    value: False

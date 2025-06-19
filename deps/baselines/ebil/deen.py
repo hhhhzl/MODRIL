@@ -108,6 +108,9 @@ if __name__ == "__main__":
     num_epoch = args.num_epoch
 
     env = args.traj_load_path.split('/')[-1][:-3]
+    if env.lower() == "sine":
+        args.norm = False
+        
     model_save_path = f'{args.save_path}/{env}/{task}/trained_models'
     image_save_path = f'{args.save_path}/{env}/{task}/trained_imgs'
 
@@ -198,8 +201,8 @@ if __name__ == "__main__":
             cf = ax.contourf(X, Y, E, levels=100, cmap='viridis')
             plt.colorbar(cf, ax=ax, label='Energy')
             ax.set_title(f'Energy Field at epoch {t}')
-            ax.set_xlabel('dim0')
-            ax.set_ylabel('dim1')
+            ax.set_xlabel('state')
+            ax.set_ylabel('action')
             ax.scatter(data_np[:2000, 0], data_np[:2000, 1], s=2, c='white', alpha=0.6, edgecolors='none')
             plt.savefig(f'{image_save_path}/{env}_energy_epoch_{t}.png')
             plt.close()

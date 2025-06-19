@@ -47,3 +47,5 @@ parameters:
     value: 5000000
   option:
     value: 2fs
+  flowril-state-norm:
+    value: False

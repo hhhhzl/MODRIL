@@ -255,6 +255,9 @@ if __name__ == "__main__":
     print(f"Depth = {args.depth}")
 
     env = args.traj_load_path.split('/')[-1][:-3]
+    if env.lower() == "sine":
+        args.norm = False
+        
     model_save_path = f'{args.save_path}/{env}/{task}/trained_models'
     image_save_path = f'{args.save_path}/{env}/{task}/trained_imgs'
 

@@ -150,9 +150,12 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
     def _trans_agent_state(self, state, other_state=None):
         if not self.args.flowril_state_norm:
-            if other_state is None:
-                return state['raw_obs']
-            return other_state['raw_obs']
+            if isinstance(state, dict):
+                if other_state is None:
+                    return state['raw_obs']
+                return other_state['raw_obs']
+            else:
+                return state
         return rutils.get_def_obs(state)
 
     # rewards
@@ -341,8 +344,9 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 logp_E = self.flow_net.log_prob(state, action, role="expert")
                 logp_A = self.flow_net.log_prob(state, action, role="agent")
         else:
-            logp_E = self.flow_net_e.log_prob(state, action)
-            logp_A = self.flow_net_a.log_prob(state, action)
+            xs_A = torch.cat([state, action], dim=1)
+            logp_E = self.flow_net_e.log_prob(xs_A)
+            logp_A = self.flow_net_a.log_prob(xs_A)
 
         return (logp_E - logp_A).detach()
 
@@ -436,18 +440,18 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 v_E = self.flow_net_e.net(a_grid, s_grid, sample_t)
                 v_A = self.flow_net_a.net(a_grid, s_grid, sample_t)
                 fields = {
-                    'v_E': (v_E.cpu().numpy(), 'Expert Flow'),
-                    'v_A': (v_A.cpu().numpy(), 'Agent Flow'),
+                    'v_E': (v_E.cpu().numpy(), 'VE'),
+                    'v_A': (v_A.cpu().numpy(), 'VA'),
                 }
             else:
                 v_c, r = self.flow_net.net(a_grid, s_grid, sample_t)
                 v_E = v_c + r
                 v_A = v_c - r
                 fields = {
-                    'v_c': (v_c.cpu().numpy(), 'Core Flow'),
                     'r': (r.cpu().numpy(), 'Residual'),
-                    'v_E': (v_E.cpu().numpy(), 'Expert Flow'),
-                    'v_A': (v_A.cpu().numpy(), 'Agent Flow'),
+                    'v_c': (v_c.cpu().numpy(), 'Vc'),
+                    'v_E': (v_E.cpu().numpy(), 'VE'),
+                    'v_A': (v_A.cpu().numpy(), 'VA'),
                 }
 
         n = len(fields)
@@ -464,8 +468,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             cf = ax.contourf(X, Y, mag, levels=100, cmap=CMAP, alpha=ALPHA_BG)
             ax.streamplot(X, Y, U, V, color=mag, cmap=CMAP, **PLOT_KW)
             ax.set_title(title)
-            ax.set_xlabel('dim 0')
-            ax.set_ylabel('dim 1')
+            ax.set_xlabel('state')
+            ax.set_ylabel('action')
             fig.colorbar(cf, ax=ax, label='||v||')
 
         for j in range(n, len(axes)):
@@ -550,16 +554,24 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         parser.add_argument('--plot-during-train', type=bool, default=True)
         parser.add_argument('--save-animation', type=bool, default=False)
         parser.add_argument('--save-animation', type=bool, default=False)
-        parser.add_argument('--save-interval', type=int, default=100)
+        parser.add_argument('--save-interval', type=int, default=10)
         parser.add_argument('--animation-type', type=str, default='gif')
         parser.add_argument('--animation-fps', type=int, default=20)
 
     def load_resume(self, checkpointer):
         super().load_resume(checkpointer)
         self.opt.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}_opt'))
-        self.flow_net.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}'))
+        if self.args.option == "scrf":
+            self.flow_net.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}'))
+        else:
+            self.flow_net_e.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}_e'))
+            self.flow_net_a.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}_a'))
 
     def save(self, checkpointer):
         super().save(checkpointer)
         checkpointer.save_key(f'flow_{self.args.option}_opt', self.opt.state_dict())
-        checkpointer.save_key(f'flow_{self.args.option}', self.flow_net.state_dict())
+        if self.args.option == "scrf":
+            checkpointer.save_key(f'flow_{self.args.option}', self.flow_net.state_dict())
+        else:
+            self.flow_net_e.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}_e'))
+            self.flow_net_a.load_state_dict(checkpointer.get_key(f'flow_{self.args.option}_a'))

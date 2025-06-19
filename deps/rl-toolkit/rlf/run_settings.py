@@ -19,8 +19,8 @@ from rlf.rl.envs import make_vec_envs
 from rlf.rl.evaluation import full_eval
 from rlf.rl.loggers.base_logger import BaseLogger
 from rlf.rl.runner import Runner
-from mujoco_py import GlfwContext
-GlfwContext(offscreen=True)
+# from mujoco_py import GlfwContext
+# GlfwContext(offscreen=True)
 
 def init_seeds(args):
     # Set all seeds
