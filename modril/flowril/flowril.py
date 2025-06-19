@@ -202,7 +202,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
             else:
                 self.flow_net_e.eval()
                 self.flow_net_a.eval()
-                
+
             reward = self._compute_flow_reward(storage, step, add_info)
 
             if self.args.flowril_reward_norm:
@@ -223,11 +223,12 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         expert_actions = rutils.get_ac_repr(self.action_space, expert_actions)
         expert_inp = torch.cat([expert_states, expert_actions], dim=-1)
 
-        agent_states = self._trans_agent_state(agent_batch['state'], agent_batch['other_state'] if 'other_state' in agent_batch else None)
+        agent_states = self._trans_agent_state(agent_batch['state'],
+                                               agent_batch['other_state'] if 'other_state' in agent_batch else None)
         agent_actions = agent_batch['actions'].to(self.args.device)
         agent_actions = rutils.get_ac_repr(self.action_space, agent_actions)
         agent_inp = torch.cat([agent_states, agent_actions], dim=-1)
-        
+
         s_E = expert_inp[:, :self.state_dim]
         a_E = expert_inp[:, self.state_dim:]
         s_A = agent_inp[:, :self.state_dim]
@@ -331,8 +332,8 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 log_vals["_vector_field_map"] = self.plot_vector_field(self.step)
                 self._vector_plot_path.append(log_vals["_vector_field_map"])
 
-                #log_vals["_reward_map"] = self.plot_reward_map(self.step)
-                #self._reward_plot_path.append(log_vals["_reward_map"])
+                # log_vals["_reward_map"] = self.plot_reward_map(self.step)
+                # self._reward_plot_path.append(log_vals["_reward_map"])
         return log_vals
 
     def _compute_disc_val(self, state, action):
@@ -361,7 +362,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         plt.figure(figsize=(8, 5))
         plt.imshow(reward, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
-        file_path = "./data/imgs/" + self.args.prefix + f"_{self.args.option}_disc_val_map.png"
+        file_path = "./data/imgs/" + f"{self.args.prefix}/" + f"{self.args.option}_disc_val_map_{i}.png"
         folder = os.path.dirname(file_path)
         os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
@@ -395,32 +396,16 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         plt.figure(figsize=(8, 5))
         plt.imshow(reward, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
-        file_path = "./data/imgs/" + self.args.prefix + f"{self.args.option}_reward_map.png"
+        file_path = "./data/imgs/" + f"{self.args.prefix}/" + f"{self.args.option}_reward_map_{i}.png"
         folder = os.path.dirname(file_path)
         os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
         return file_path
 
     def plot_vector_field(self, i):
-        ds = self.expert_train_loader.dataset
-        if hasattr(ds, 'tensors'):
-            data = torch.cat(ds.tensors, dim=1)
-        else:
-            rows = []
-            for item in ds:
-                s, a = item['state'], item['actions']
-                s = torch.as_tensor(s).view(-1)
-                a = torch.as_tensor(a).view(-1)
-                rows.append(torch.cat([s, a], dim=0))
+        x_vals = torch.linspace(0, 10, 100)
+        y_vals = torch.linspace(-2, 2, 100)
 
-            data = torch.stack(rows, dim=0)
-
-        data_np = data.cpu().numpy()
-        x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
-        y_min, y_max = data_np[:, 1].min(), data_np[:, 1].max()
-
-        x_vals = np.linspace(x_min, x_max, 200)
-        y_vals = np.linspace(y_min, y_max, 200)
         X, Y = np.meshgrid(x_vals, y_vals)
         grid = np.stack([X.ravel(), Y.ravel()], axis=-1)
         grid_t = torch.from_numpy(grid).float().to(self.args.device)
@@ -457,7 +442,14 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         n = len(fields)
         cols = 4
         rows = 1
-        fig, axes = plt.subplots(rows, cols, figsize=(6 * cols, 6 * rows))
+
+        fig_width_per_subplot = 8
+        fig_height_per_subplot = 5
+
+        cf_shared = None
+        shared_axes = []
+
+        fig, axes = plt.subplots(rows, cols, figsize=(fig_width_per_subplot * cols, fig_height_per_subplot * rows))
         axes = axes.flatten()
 
         for ax, (key, (vec_np, title)) in zip(axes, fields.items()):
@@ -467,22 +459,37 @@ class FlowMatchingEstimation(BaseIRLAlgo):
 
             cf = ax.contourf(X, Y, mag, levels=100, cmap=CMAP, alpha=ALPHA_BG)
             ax.streamplot(X, Y, U, V, color=mag, cmap=CMAP, **PLOT_KW)
-            ax.set_title(title)
+
             ax.set_xlabel('state')
-            ax.set_ylabel('action')
-            fig.colorbar(cf, ax=ax, label='||v||')
+            if key == "r":
+                ax.set_ylabel('action')
+            fig.colorbar(cf, ax=ax)
+
+            # ax.set_title(title)
+
+        #     if key == "r":
+        #         fig.colorbar(cf, ax=ax)
+        #     elif key in ["v_c", "v_E", "v_A"]:
+        #         cf_shared = cf
+        #         shared_axes.append(ax)
+
+        # if cf_shared is not None and shared_axes:
+        #     fig.colorbar(cf_shared, ax=shared_axes, orientation='vertical')
 
         for j in range(n, len(axes)):
             fig.delaxes(axes[j])
 
-        fig.suptitle(f'Vector Field @ epoch {i}', fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        for ax in axes[:n]:
+            ax.margins(0)
+            ax.set_xlim(X.min(), X.max())
+            ax.set_ylim(Y.min(), Y.max())
 
-        file_path = "./data/imgs/" + self.args.prefix + f"_{self.args.option}_vec_field_{i}.png"
+        fig.subplots_adjust(left=0.00, right=1.00, bottom=0.00, top=1.00, wspace=0.00, hspace=0.00)
+
+        file_path = "./data/imgs/" + f"{self.args.prefix}/" + f"{self.args.option}_vec_field_{i}.png"
         folder = os.path.dirname(file_path)
         os.makedirs(folder, exist_ok=True)
-        plt.savefig(file_path)
-        return file_path
+        plt.savefig(file_path, bbox_inches='tight', pad_inches=0)
 
     def _save_animation(self, step):
         if not getattr(self.args, 'plot_during_train', False):
@@ -534,10 +541,11 @@ class FlowMatchingEstimation(BaseIRLAlgo):
         parser.add_argument('--flow-path', type=str, default=None)
         parser.add_argument('--flow-depth', type=int, default=4)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
-        parser.add_argument('--disc-grad-pen', type=float, default=0.0)
+        parser.add_argument('--disc-grad-pen', type=float, default=1.0)
         parser.add_argument('--expert-loss-rate', type=float, default=1.0)
         parser.add_argument('--agent-loss-rate', type=float, default=1.0)
-        parser.add_argument('--option', type=str, default='scrf', choices=['scrf', '2fs'])  # stable coupled residual flow / two flow networks
+        parser.add_argument('--option', type=str, default='scrf',
+                            choices=['scrf', '2fs'])  # stable coupled residual flow / two flow networks
         parser.add_argument('--hidden-dim', type=int, default=256)
         parser.add_argument('--enable-loss-anti', type=str2bool, default=True)
         parser.add_argument('--enable-loss-stable', type=str2bool, default=True)
@@ -552,8 +560,7 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 """)
         # for plot
         parser.add_argument('--plot-during-train', type=bool, default=True)
-        parser.add_argument('--save-animation', type=bool, default=False)
-        parser.add_argument('--save-animation', type=bool, default=False)
+        parser.add_argument('--save-animation', type=bool, default=True)
         parser.add_argument('--save-interval', type=int, default=10)
         parser.add_argument('--animation-type', type=str, default='gif')
         parser.add_argument('--animation-fps', type=int, default=20)
