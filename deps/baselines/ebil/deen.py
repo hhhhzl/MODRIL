@@ -43,18 +43,15 @@ class DEENDensity(nn.Module):
         self.sigma = sigma
         self.depth = max(1, depth)
 
-        # Build network with configurable number of layers
         layers = []
-        # Input layer
         layers.append(nn.Linear(self.dim, hidden_dim))
         layers.append(nn.ReLU())
-        # Additional hidden layers
         for _ in range(self.depth - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             layers.append(nn.ReLU())
-        # Output layer
         layers.append(nn.Linear(hidden_dim, 1))
-        layers.append(nn.Sigmoid())
+
+        # layers.append(nn.Sigmoid())
 
         # Assemble into a Sequential module
         self.net = nn.Sequential(*layers)
@@ -180,7 +177,7 @@ if __name__ == "__main__":
         ave_loss = total_loss / len(dataloader)
         train_loss_list.append(ave_loss)
 
-        if t % 200 == 0:
+        if t % 500 == 0:
             data_np = dataset.cpu().numpy()
             x_min, x_max = data_np[:, 0].min(), data_np[:, 0].max()
             y_min, y_max = data_np[:, 1].min(), data_np[:, 1].max()
@@ -207,7 +204,7 @@ if __name__ == "__main__":
             plt.savefig(f'{image_save_path}/{env}_energy_epoch_{t}.png')
             plt.close()
 
-        if t % 200 == 0:
+        if t % 500 == 0:
             train_iteration_list = list(range(len(train_loss_list)))
             smoothed_ema = ema(train_loss_list, 0.05)
             plt.figure(figsize=(6, 4))
@@ -220,7 +217,7 @@ if __name__ == "__main__":
             plt.savefig(f'{image_save_path}/{env}_deen_loss.png')
             plt.close()
 
-        if t % 200 == 0:
+        if t % 1000 == 0:
             torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen_{t}.pt')
 
     torch.save(estimator.state_dict(), f'{model_save_path}/{env}_deen.pt')
