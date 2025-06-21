@@ -37,9 +37,9 @@ parameters:
   num-eval:
     value: 100
   eval-interval:
-    value: 1000
+    value: 100
   save-interval:
-    value: 1000
+    value: 100
   drail-state-norm:
     value: True
   lr:

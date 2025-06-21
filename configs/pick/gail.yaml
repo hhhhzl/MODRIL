@@ -27,7 +27,7 @@ parameters:
   gail-reward-norm:
     value: False
   cuda:
-    value: False
+    value: True
   traj-load-path:
     value: modril/expert_datasets/pick.pt
   eval-num-processes:
@@ -37,9 +37,9 @@ parameters:
   num-eval:
     value: 100
   eval-interval:
-    value: 1000
+    value: 100
   save-interval:
-    value: 1000
+    value: 100
   gail-state-norm:
     value: True
   lr:
