@@ -49,12 +49,12 @@ class FlowMatchingEstimation(BaseIRLAlgo):
                 self.flow_net.load_state_dict(torch.load(self.args.flow_path, map_location=self.args.device))
 
                 # we only frozen vector c
-                for p in self.flow_net.shared.parameters():
+                for p in self.flow_net.net.shared.parameters():
                     p.requires_grad = False
-                for p in self.flow_net.head_c.parameters():
+                for p in self.flow_net.net.head_c.parameters():
                     p.requires_grad = False
 
-                for p in self.flow_net.head_r.parameters():
+                for p in self.flow_net.net.head_r.parameters():
                     p.requires_grad = True
 
                 self.opt = torch.optim.Adam(

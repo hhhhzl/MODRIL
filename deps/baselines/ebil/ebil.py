@@ -160,15 +160,15 @@ class EnergyDensity(BaseIRLAlgo):
         
         expert_d = self.energy_net(expert_inp)
         agent_d = self.energy_net(agent_inp)
-        expert_loss = self.args.expert_loss_rate * F.binary_cross_entropy(
+        expert_loss = self.args.expert_loss_rate * F.binary_cross_entropy_with_logits(
             expert_d, torch.ones_like(expert_d)
         )
-        agent_loss = self.args.agent_loss_rate * F.binary_cross_entropy(
+        agent_loss = self.args.agent_loss_rate * F.binary_cross_entropy_with_logits(
             agent_d, torch.zeros_like(agent_d)
         )
         deen_loss = self.args.deen_loss_rate * self.energy_net.deen_loss(expert_inp)
         total_loss = expert_loss + agent_loss + deen_loss
-        return total_loss, expert_loss, agent_loss
+        return total_loss, expert_loss, agent_loss, deen_loss
 
     def _compute_expert_loss(self, expert_d, expert_batch):
         return F.binary_cross_entropy(expert_d,
@@ -178,7 +178,7 @@ class EnergyDensity(BaseIRLAlgo):
         return F.binary_cross_entropy(agent_d,
                                       torch.zeros(agent_d.shape).to(self.args.device))
 
-    def _update_reward_func(self, storage):
+    def _update_reward_func(self, storage, *args):
         self.energy_net.train()
         log_vals = defaultdict(float)
         obsfilt = self.get_env_ob_filt()
@@ -190,13 +190,14 @@ class EnergyDensity(BaseIRLAlgo):
         for _ in range(self.args.n_ebil_epochs):
             for expert_batch, agent_batch in zip(expert_sampler, agent_sampler):
                 expert_batch, agent_batch = self._trans_batches(expert_batch, agent_batch)
-                loss, e_loss, a_loss = self._compute_energy_loss(expert_batch, agent_batch, obsfilt)
+                loss, e_loss, a_loss, d_loss = self._compute_energy_loss(expert_batch, agent_batch, obsfilt)
                 self.opt.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.energy_net.parameters(), self.args.disc_grad_pen)
                 self.opt.step()
                 # Accumulate logs
-                log_vals['energy_loss'] += e_loss.item()
+                log_vals['energy_loss'] += d_loss.item()
+                log_vals['expert_loss'] += e_loss.item()
                 log_vals['agent_loss'] += a_loss.item()
                 self.step += 1
                 count += 1
@@ -204,7 +205,7 @@ class EnergyDensity(BaseIRLAlgo):
         for k in log_vals:
             log_vals[k] /= max(count, 1)
         if self.args.env_name.startswith("Sine") and (self.step % 100 == 0):
-            log_vals['_reward_map'] = self.plot_reward_map(self.step)
+            # log_vals['_reward_map'] = self.plot_reward_map(self.step)
             log_vals['_disc_val_map'] = self.plot_disc_val_map(self.step)
             log_vals['_energy_map'] = self.plot_energy_field(self.step)
 
@@ -239,7 +240,6 @@ class EnergyDensity(BaseIRLAlgo):
         Y = Y.reshape(-1, 1).to(self.args.device)
         with torch.no_grad():
             d_val = self._compute_disc_val(X, Y)
-            print(d_val.shape, ">>>>>>>>")
             s = torch.sigmoid(d_val)
             eps = 1e-20
             if self.args.reward_type == 'norm':
@@ -279,7 +279,7 @@ class EnergyDensity(BaseIRLAlgo):
         plt.figure(figsize=(8, 5))
         plt.imshow(field, extent=[0, 10, -2, 2], cmap="jet", origin="lower", aspect="auto")
         plt.colorbar()
-        file_path = "./data/imgs/" + self.args.prefix + "_reward_map.png"
+        file_path = "./data/imgs/" + self.args.prefix + "_energy_map.png"
         folder = os.path.dirname(file_path)
         os.makedirs(folder, exist_ok=True)
         plt.savefig(file_path)
@@ -300,9 +300,9 @@ class EnergyDensity(BaseIRLAlgo):
         parser.add_argument('--sigma', type=int, default=0.1)
         parser.add_argument('--disc-lr', type=float, default=1e-4)
         parser.add_argument('--disc-grad-pen', type=float, default=0.0)
-        parser.add_argument('--expert-loss-rate', type=float, default=1.0)
-        parser.add_argument('--agent-loss-rate', type=float, default=1.0)
-        parser.add_argument('--deen-loss-rate', type=float, default=0.2)
+        parser.add_argument('--expert-loss-rate', type=float, default=0)
+        parser.add_argument('--agent-loss-rate', type=float, default=0)
+        parser.add_argument('--deen-loss-rate', type=float, default=1.0)
         parser.add_argument('--reward-type', type=str, default='raw', help="""
                 Changes the reward computation. Does
                 not change training.
