@@ -20,11 +20,11 @@ parameters:
   env-name:
     value: FetchPickAndPlaceDiffHoldout-v0
   num-env-steps:
-    value: 25000000
+    value: 10000000
   drail-reward-norm:
     value: False
   cuda:
-    value: False
+    value: True
   traj-load-path:
     value: modril/expert_datasets/pick.pt
   eval-num-processes:
