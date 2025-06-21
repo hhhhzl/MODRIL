@@ -35,9 +35,9 @@ parameters:
   log-interval:
     value: 1
   save-interval:
-    value: 100000
+    value: 100
   eval-interval:
-    value: 200
+    value: 100
   clip-actions:
     value: False
   traj-batch-size:
