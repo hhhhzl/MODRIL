@@ -1,49 +1,52 @@
-project: 'sine-project'
+project: 'maze-project'
 program: deps/baselines/main.py
 method: grid
-name: Sine-flowril
+name: Maze-ebil
 command:
   - ${env}
   - python3
   - ${program}
   - ${args}
+  - --use-proper-time-limits
 
 parameters:
   seed:
-    value: 1
+    values: [1, 2, 3, 4, 5]
   alg:
-    value: flowril
+    value: ebil
   prefix:
-    value: flowril
+    value: ebil
   env-name:
-    value: Sine-v0
+    value: maze2d-medium-v2
   num-mini-batch:
     value: 32
   num-epochs:
     value: 10
+  n-ebil-epochs:
+    value: 1
   entropy-coef:
     value: 0.001
-  flowril-reward-norm:
-    value: True
   cuda:
     value: True
   eval-interval:
-    value: 1
+    value: 50
   save-interval:
-    value: 10
+    value: 50
   traj-load-path:
-    value: modril/expert_datasets/sine.pt
-  flow-path:
-    value: data/pre/sine/scrf/trained_models/sine_fm.pt
+    value: modril/expert_datasets/maze.pt
+  energy-path:
+    value: data/pre/maze/ebm/trained_models/maze_deen.pt
   lr:
-    value: 1e-6
+    value: 1e-4
   disc-lr:
     value: 0.001
   eval-num-processes:
     value: 1
+  num-render:
+    value: 1
   num-eval:
-    value: 10
+    value: 100
   num-env-steps:
-    value: 5000000
-  flowril-state-norm:
+    value: 25000000
+  ebil-reward-norm:
     value: False

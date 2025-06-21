@@ -1,4 +1,4 @@
-project: 'hand-project'
+project: 'maze-project'
 program: deps/baselines/main.py
 method: grid
 name: Maze-gail

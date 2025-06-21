@@ -23,7 +23,7 @@ parameters:
   env-name:
     value: FetchPickAndPlaceDiffHoldout-v0
   num-env-steps:
-    value: 25000000
+    value: 10000000
   gail-reward-norm:
     value: False
   cuda:

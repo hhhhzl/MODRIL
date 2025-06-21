@@ -45,7 +45,7 @@ parameters:
   max-grad-norm:
     value: 0.5
   num-env-steps:
-    value: 5000000
+    value: 10000000
   traj-frac:
     value: 1
   action-input:

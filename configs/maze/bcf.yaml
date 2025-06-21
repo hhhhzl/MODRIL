@@ -1,4 +1,4 @@
-project: 'hand-project'
+project: 'maze-project'
 program: deps/baselines/main.py
 method: grid
 name: Maze-bcf
@@ -51,4 +51,4 @@ parameters:
   prefix:
     value: bcf
   num-env-steps:
-    value: 5000000
+    value: 25000000

@@ -22,6 +22,8 @@ parameters:
     value: 1
   num-eval:
     value: 100
+  cuda:
+    value: True
   eval-interval:
     value: 500
   save-interval:
@@ -39,6 +41,6 @@ parameters:
   depth:
     value: 3
   num-env-steps:
-    value: 25000000
+    value: 10000000
   seed:
     values: [1,2,3,4,5]

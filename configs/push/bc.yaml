@@ -45,4 +45,4 @@ parameters:
   lr:
     value: 0.0002
   num-env-steps:
-    value: 5000000
+    value: 10000000
